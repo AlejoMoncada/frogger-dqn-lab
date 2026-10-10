@@ -5,8 +5,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from dqn_frogger.milestones import MEDAL_ORDER, MilestoneResult
+from dqn_frogger.milestones import MEDAL_ORDER, PROXY_MEDALS, MilestoneResult
 
+PROXY_MARK = "*"  # appended to proxy medal headers in Markdown
 MEDAL_EMOJI: dict[str, str] = {
     "first_hop": "🐸",
     "road_crossed": "🥉",
@@ -77,7 +78,10 @@ def medal_cell(name: str, pct: float) -> str:
 
 def render_markdown(rows: Sequence[LeaderboardRow]) -> str:
     """Markdown table: one row per policy, medal columns in canonical order."""
-    medal_headers = [f"{MEDAL_EMOJI[name]} {name}" for name in MEDAL_ORDER]
+    medal_headers = [
+        f"{MEDAL_EMOJI[name]} {name}{PROXY_MARK if name in PROXY_MEDALS else ''}"
+        for name in MEDAL_ORDER
+    ]
     header = ["Checkpoint", "Episodes", "Score", "Max rows (mean / max)", "Homes (mean / max)"]
     lines = [
         "| " + " | ".join(header + medal_headers) + " |",
@@ -123,6 +127,7 @@ def leaderboard_document(
             "max_rows_mean": entry.row.max_rows_mean,
             "max_rows_max": entry.row.max_rows_max,
             "homes_mean": entry.row.homes_mean,
+            "homes_max": entry.row.homes_max,
             "medals": {name: pct / 100.0 for name, pct in entry.row.medal_pct.items()},
             "screenshots": dict(entry.screenshots),
             "gif": entry.gif,
@@ -134,5 +139,6 @@ def leaderboard_document(
         "algorithm": algorithm,
         "env_id": env_id,
         "run_id": run_id,
+        "proxy_medals": [name for name in MEDAL_ORDER if name in PROXY_MEDALS],
         "rows": rows,
     }

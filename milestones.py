@@ -23,6 +23,7 @@ from dqn_frogger.agent import DQNAgent  # noqa: E402
 from dqn_frogger.env import ENV_ID, make_env  # noqa: E402
 from dqn_frogger.leaderboard import (  # noqa: E402
     MEDAL_EMOJI,
+    PROXY_MARK,
     EpisodeOutcome,
     LeaderboardEntry,
     LeaderboardRow,
@@ -34,18 +35,19 @@ from dqn_frogger.milestones import (  # noqa: E402
     HOME_MEDALS,
     HOME_ROW,
     MEDAL_ORDER,
+    PROXY_MEDALS,
     ROW_MEDALS,
     MilestoneTracker,
 )
+from dqn_frogger.seeds import EVAL_SEED_BASE  # noqa: E402
 
-EVAL_SEED_BASE = 900_000  # distinct from training seeds (42 and 10042)
 EVAL_EPSILON = 0.01
 GIF_FRAME_EVERY = 2  # keep every 2nd environment step
 GIF_MAX_FRAMES = 900
 GIF_DOWNSCALE = 2
 GIF_FPS = 30
 CHECKPOINT_RE = re.compile(r"step_(\d+)\.pt$")
-Policy = Callable[[np.ndarray], int]
+Policy = Callable[[np.ndarray, np.random.Generator], int]
 
 
 @dataclass
@@ -60,13 +62,18 @@ class Episode:
 def play_episode(
     env, policy: Policy, seed: int, keep_gif: bool
 ) -> Episode:  # env is a gymnasium env with rgb_array rendering
-    """Play one episode, keeping the first frame of every medal and optionally a GIF."""
+    """Play one episode, keeping the first frame of every medal and optionally a GIF.
+
+    The policy gets its own generator seeded from the episode seed, so the episode does not
+    depend on how many episodes were played before it.
+    """
     obs, _ = env.reset(seed=seed)
+    policy_rng = np.random.default_rng(seed)
     tracker = MilestoneTracker()
     episode = Episode(outcome=EpisodeOutcome(score=0.0, milestones=tracker.result()))
     score, step, done = 0.0, 0, False
     while not done:
-        obs, reward, terminated, truncated, info = env.step(policy(obs))
+        obs, reward, terminated, truncated, info = env.step(policy(obs, policy_rng))
         tracker.observe(step, float(reward), int(info["lives"]))
         score += float(reward)
         frame = env.render()
@@ -89,6 +96,26 @@ def find_checkpoints(checkpoint_dir: Path) -> list[tuple[int, Path]]:
         match = CHECKPOINT_RE.search(path.name)
         if match:
             found.append((int(match.group(1)), path))
+    return sorted(found)
+
+
+def find_run_checkpoints(run_dir: Path) -> list[tuple[int, Path]]:
+    """Checkpoints of one run: the list recorded in its config.json, else a glob fallback.
+
+    The manifest keeps stale step_<N>.pt files from other runs out of the leaderboard.
+    """
+    config_path = run_dir / "config.json"
+    if not config_path.exists():
+        return find_checkpoints(run_dir / "checkpoints")
+    manifest = json.loads(config_path.read_text(encoding="utf-8")).get("checkpoints")
+    if manifest is None:
+        return find_checkpoints(run_dir / "checkpoints")
+    found = []
+    for relative in manifest:
+        path = run_dir / relative
+        if not path.exists():
+            raise FileNotFoundError(f"config.json lists {relative} but the file is missing")
+        found.append((int(CHECKPOINT_RE.search(path.name).group(1)), path))
     return sorted(found)
 
 
@@ -142,7 +169,13 @@ def legend_markdown() -> str:
             rule = f"reach row {ROW_MEDALS[name]} in one life (home row is {HOME_ROW})"
         else:
             rule = f"{HOME_MEDALS[name]} frog(s) home in one episode"
-        lines.append(f"- {MEDAL_EMOJI[name]} `{name}`: {rule}")
+        mark = PROXY_MARK if name in PROXY_MEDALS else ""
+        lines.append(f"- {MEDAL_EMOJI[name]} `{name}`{mark}: {rule}")
+    lines += [
+        "",
+        f"{PROXY_MARK} Unverified proxy: home detection is not validated against RAM traces, "
+        "so this medal is an estimate.",
+    ]
     return "\n".join(lines) + "\n"
 
 
@@ -171,7 +204,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     run_dir: Path = args.run_dir
-    checkpoints = find_checkpoints(run_dir / "checkpoints")
+    checkpoints = find_run_checkpoints(run_dir)
     if not checkpoints:
         raise SystemExit(f"no step_<N>.pt checkpoints in {run_dir / 'checkpoints'}")
     for sub in ("screenshots", "gifs"):
@@ -181,7 +214,7 @@ def main() -> None:
     n_actions = int(env.action_space.n)
     obs_dim = int(env.observation_space.shape[0])
 
-    random_eps = evaluate(env, lambda _obs: int(env.action_space.sample()), args.episodes, True)
+    random_eps = evaluate(env, lambda _obs, rng: int(rng.integers(n_actions)), args.episodes, True)
     write_gif(run_dir / "gifs" / "random.gif", random_eps[0].gif_frames)
     rows = [summarize("random", [e.outcome for e in random_eps])]
     entries = [LeaderboardEntry(row=rows[0], step=None, screenshots={}, gif="gifs/random.gif")]
@@ -190,9 +223,8 @@ def main() -> None:
     for step, path in checkpoints:
         agent = DQNAgent(obs_dim=obs_dim, n_actions=n_actions)
         agent.load(path)
-        rng = np.random.default_rng(EVAL_SEED_BASE)
         episodes = evaluate(
-            env, lambda obs, a=agent, g=rng: a.act(obs, EVAL_EPSILON, g), args.episodes, True
+            env, lambda obs, rng, a=agent: a.act(obs, EVAL_EPSILON, rng), args.episodes, True
         )
         shots = write_screenshots(run_dir, step, episodes)
         write_gif(run_dir / "gifs" / f"step_{step}.gif", episodes[0].gif_frames)

@@ -66,6 +66,50 @@ def test_render_markdown_has_header_and_one_line_per_row() -> None:
     assert MEDAL_EMOJI["first_hop"] in lines[2]
 
 
+def test_markdown_marks_unverified_proxy_medals() -> None:
+    row = summarize("step 100", [_outcome(5.0, 2, 0, ("first_hop",))])
+    header = render_markdown([row]).splitlines()[0]
+
+    assert f"{MEDAL_EMOJI['frog_home']} frog_home*" in header
+    assert f"{MEDAL_EMOJI['first_hop']} first_hop |" in header  # verified medals are unmarked
+
+
+def test_leaderboard_document_full_schema_keys() -> None:
+    row = summarize("random", [_outcome(5.0, 2, 3, ("first_hop",))])
+    document = leaderboard_document(
+        algorithm="DQN",
+        env_id="ALE/Frogger-v5",
+        run_id="smoke",
+        entries=[LeaderboardEntry(row=row, step=None, screenshots={}, gif="gifs/random.gif")],
+    )
+
+    assert set(document) == {
+        "schema_version",
+        "algorithm",
+        "env_id",
+        "run_id",
+        "proxy_medals",
+        "rows",
+    }
+    assert document["proxy_medals"] == ["frog_home", "three_homes", "level_cleared"]
+    assert set(document["rows"][0]) == {
+        "label",
+        "step",
+        "episodes",
+        "score_mean",
+        "score_std",
+        "max_rows_mean",
+        "max_rows_max",
+        "homes_mean",
+        "homes_max",
+        "medals",
+        "screenshots",
+        "gif",
+    }
+    assert document["rows"][0]["homes_max"] == 3
+    assert document["rows"][0]["max_rows_max"] == 2
+
+
 def test_leaderboard_document_uses_fractions_and_relative_artifact_paths() -> None:
     random_row = summarize("random", [_outcome(5.0, 2, 0, ("first_hop",))])
     step_row = summarize("1,000", [_outcome(8.0, 4, 1, ("first_hop", "road_crossed"))])

@@ -33,6 +33,9 @@ repo would confuse graders, so DQN lives in this separate, independent project.
 - [ ] T4 Create public GitHub repo and push (user decision; not authorized yet)
 - [x] T5 `milestones.py` also exports `leaderboard.json` with an algorithm-agnostic schema
       (algorithm, run_id, checkpoint step, score mean/std, max_rows, medal percentages, screenshot/gif paths)
+- [x] T6 Apply independent review fixes (`docs/codex-review.md`): run-directory reuse guard, home only when the
+      frog survives the step, proxy medals, `config.json` and seed separation, per-episode evaluation RNG,
+      `homes_max` in JSON, trainer and media tests (route: delegated direct, single writer, Haiku)
 
 ### Follow-ups after the DQN deliverable (not this feature's scope)
 - PPO repo (`frogger-rl-lab`, formative, already delivered): new branch adding SB3 CheckpointCallback,
@@ -66,6 +69,21 @@ single-pr not applicable (new repo); work-unit commits on `main` after the initi
 - `uv run python train.py --smoke --output-dir runs/smoke_ms`: exit OK, `done: {'total_steps': 2000, 'episodes': 7, ...}`, `timing.json` written.
 - `uv run python milestones.py --run-dir runs/smoke_ms --episodes 2`: wrote `leaderboard.md`, `leaderboard.csv`, `leaderboard.json`, `milestones.png`, `screenshots/` and 3 GIFs (`random.gif`, `step_1000.gif`, `step_2000.gif`).
 - Route: delegated direct (single writer, Haiku). Verification was run by the writer; no separate verifier.
+
+### T6 evidence (independent review fixes)
+- Branch `fix/review-findings`, work-unit commits: `524639a` fix: count home only when the frog survives the step;
+  `cfe2e08` feat: save run config and validate seed separation; `ead6fd8` fix: refuse to reuse a run directory;
+  `7b4d375` fix: seed evaluation policy per episode; `5723030` feat: add homes_max and proxy medals to leaderboard json;
+  `28e6637` test: cover trainer termination, target sync and media output.
+- RED observed before each behavior fix (home on death step, seed range, reuse refusal, eval history, schema keys).
+- Routes: delegated direct, single writer. Parent-independent verification: `uv run pytest -q` -> `50 passed`.
+- `uv run python train.py --smoke --output-dir runs/smoke_fix`: exit 0.
+- Same command again: exit 1, `error: runs\smoke_fix already holds a run; ... or pass --overwrite`.
+- Same command with `--overwrite`: exit 0.
+- `uv run python milestones.py --run-dir runs/smoke_fix --episodes 2`: exit 0; `leaderboard.json` has
+  `proxy_medals` (`frog_home`, `three_homes`, `level_cleared`) and `homes_max` in every row; `config.json` exists.
+- Dependencies: `uv.lock` already pinned exact versions; no pins changed.
+- Not done: validation of home detection against RAM traces (still open; medals stay proxies).
 
 ## Next step
 T2c (long run with checkpoints, 2M-5M steps) and the home-detection follow-up.

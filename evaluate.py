@@ -43,13 +43,12 @@ def main() -> None:
 
     agent = DQNAgent(obs_dim=obs_dim, n_actions=n_actions)
     agent.load(args.checkpoint)
-    rng = np.random.default_rng(EVAL_SEED)
 
     dqn_returns = run_episodes(
-        env, lambda o: agent.act(o, args.epsilon, rng), args.episodes, seed=EVAL_SEED
+        env, lambda o, r: agent.act(o, args.epsilon, r), args.episodes, seed=EVAL_SEED
     )
     random_returns = run_episodes(
-        env, lambda _: int(env.action_space.sample()), args.episodes, seed=EVAL_SEED
+        env, lambda _o, r: int(r.integers(n_actions)), args.episodes, seed=EVAL_SEED
     )
     env.close()
 

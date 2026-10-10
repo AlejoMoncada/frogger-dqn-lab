@@ -1,29 +1,38 @@
 """Training loop: environment interaction, replay, TD learning, logging and checkpointing."""
 
 import csv
+import gymnasium
 import json
 import platform
 import random
+import shutil
+import subprocess
 import time
+from dataclasses import asdict
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any, TextIO
 
+import ale_py
 import numpy as np
 import torch
 
 from dqn_frogger.agent import DQNAgent
 from dqn_frogger.config import DQNConfig
-from dqn_frogger.env import make_env
+from dqn_frogger.env import ENV_ID, make_env
 from dqn_frogger.evaluation import run_episodes
 from dqn_frogger.milestones import MilestoneTracker, format_medals
 from dqn_frogger.replay_buffer import ReplayBuffer
 from dqn_frogger.schedule import epsilon_at
+from dqn_frogger.seeds import EVAL_SEED_BASE, EVAL_SEED_SPAN, validate_training_seed
 
 CHECKPOINT_NAME = "dqn_frogger.pt"
 CHECKPOINT_DIR = "checkpoints"
 EPISODES_CSV = "episodes.csv"
 EVAL_CSV = "eval.csv"
 TIMING_JSON = "timing.json"
+CONFIG_JSON = "config.json"
+REPO_ROOT = Path(__file__).resolve().parent.parent
 EPISODE_HEADER = [
     "episode",
     "global_step",
@@ -74,12 +83,79 @@ def _write_timing(
     return timing
 
 
-def train(config: DQNConfig, output_dir: Path | str) -> dict[str, Any]:
-    """Train a DQN agent on Frogger RAM and return summary metrics."""
+def _git_commit() -> str | None:
+    """Current HEAD commit of this repository, or None when git cannot tell."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout.strip() or None
+
+
+def _write_run_config(path: Path, config: DQNConfig) -> None:
+    """Record everything needed to reproduce the run, before any training happens."""
+    active_steps = config.active_checkpoint_steps()
+    run_config = {
+        "schema_version": 1,
+        "config": asdict(config),
+        "env": {"id": ENV_ID, "obs_type": "ram", "observation": "float32 in [0, 1], shape (128,)"},
+        "versions": {
+            "python": platform.python_version(),
+            "torch": torch.__version__,
+            "gymnasium": gymnasium.__version__,
+            "ale_py": version("ale-py"),
+            "numpy": np.__version__,
+        },
+        "git_commit": _git_commit(),
+        "eval_seed_base": EVAL_SEED_BASE,
+        "eval_seed_span": EVAL_SEED_SPAN,
+        "train_eval_seed_offset": EVAL_SEED_OFFSET,
+        "checkpoints": [f"{CHECKPOINT_DIR}/step_{step}.pt" for step in active_steps],
+    }
+    path.write_text(json.dumps(run_config, indent=2), encoding="utf-8")
+
+
+RUN_ARTIFACTS = (EPISODES_CSV, EVAL_CSV, TIMING_JSON, CONFIG_JSON, CHECKPOINT_NAME)
+
+
+def _holds_run(out: Path) -> bool:
+    checkpoints = out / CHECKPOINT_DIR
+    has_checkpoints = checkpoints.is_dir() and any(checkpoints.iterdir())
+    return (out / EPISODES_CSV).exists() or has_checkpoints
+
+
+def _clear_run_artifacts(out: Path) -> None:
+    """Remove only the files this trainer writes; anything else in the directory is kept."""
+    for name in RUN_ARTIFACTS:
+        (out / name).unlink(missing_ok=True)
+    shutil.rmtree(out / CHECKPOINT_DIR, ignore_errors=True)
+
+
+def train(config: DQNConfig, output_dir: Path | str, overwrite: bool = False) -> dict[str, Any]:
+    """Train a DQN agent on Frogger RAM and return summary metrics.
+
+    Refuses a directory that already holds a run (episodes.csv or checkpoints/) unless
+    `overwrite` is True, in which case only the known run artifacts are cleared first.
+    """
+    validate_training_seed(config.seed)
     out = Path(output_dir)
+    if _holds_run(out):
+        if not overwrite:
+            raise FileExistsError(
+                f"{out} already holds a run; choose another --output-dir or pass --overwrite"
+            )
+        _clear_run_artifacts(out)
     out.mkdir(parents=True, exist_ok=True)
     checkpoint_dir = out / CHECKPOINT_DIR
     checkpoint_dir.mkdir(exist_ok=True)
+    _write_run_config(out / CONFIG_JSON, config)
     checkpoint_steps = set(config.active_checkpoint_steps())
     random.seed(config.seed)
     np.random.seed(config.seed)
@@ -88,7 +164,6 @@ def train(config: DQNConfig, output_dir: Path | str) -> dict[str, Any]:
 
     env = make_env(config.seed)
     eval_env = make_env(config.seed + EVAL_SEED_OFFSET)
-    eval_rng = np.random.default_rng(config.seed + EVAL_SEED_OFFSET)
     obs_dim = int(env.observation_space.shape[0])
     n_actions = int(env.action_space.n)
 
@@ -101,7 +176,10 @@ def train(config: DQNConfig, output_dir: Path | str) -> dict[str, Any]:
     )
     buffer = ReplayBuffer(config.buffer_size, obs_dim)
     episodes_log = _CsvLog(out / EPISODES_CSV, EPISODE_HEADER)
-    eval_log = _CsvLog(out / EVAL_CSV, ["global_step", "mean_return", "std_return", "episodes"])
+    eval_log = _CsvLog(
+        out / EVAL_CSV,
+        ["global_step", "mean_return", "std_return", "episodes", "first_seed", "last_seed"],
+    )
 
     obs, _ = env.reset(seed=config.seed)
     tracker = MilestoneTracker()
@@ -149,14 +227,24 @@ def train(config: DQNConfig, output_dir: Path | str) -> dict[str, Any]:
             agent.sync_target()
 
         if step % config.eval_interval == 0 or step == config.total_steps:
+            eval_seed = config.seed + EVAL_SEED_OFFSET
             returns = run_episodes(
                 eval_env,
-                lambda o: agent.act(o, config.eval_epsilon, eval_rng),
+                lambda o, r: agent.act(o, config.eval_epsilon, r),
                 config.eval_episodes,
-                seed=config.seed + EVAL_SEED_OFFSET,
+                seed=eval_seed,
             )
             last_eval_mean = float(np.mean(returns))
-            eval_log.write([step, last_eval_mean, float(np.std(returns)), len(returns)])
+            eval_log.write(
+                [
+                    step,
+                    last_eval_mean,
+                    float(np.std(returns)),
+                    len(returns),
+                    eval_seed,
+                    eval_seed + len(returns) - 1,
+                ]
+            )
             print(f"[eval] step={step} mean_return={last_eval_mean:.1f}", flush=True)
 
         if step in checkpoint_steps:

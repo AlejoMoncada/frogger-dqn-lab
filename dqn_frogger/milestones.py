@@ -26,6 +26,9 @@ HOME_MEDALS: dict[str, int] = {
     "three_homes": 3,
     "level_cleared": HOMES_FOR_LEVEL_CLEARED,
 }
+# Medals derived from home detection. Home detection is not validated against RAM traces
+# (docs/notas-de-desarrollo.md, section 4), so these are proxies, not confirmed achievements.
+PROXY_MEDALS: frozenset[str] = frozenset(HOME_MEDALS)
 MEDAL_ORDER: tuple[str, ...] = (
     "first_hop",
     "road_crossed",
@@ -63,14 +66,18 @@ class MilestoneTracker:
         self._medals: dict[str, int] = {}
 
     def observe(self, step: int, reward: float, lives: int) -> None:
-        """Process one step. A positive reward is one new row; a lost life resets the row count."""
+        """Process one step. A positive reward is one new row; a lost life resets the row count.
+
+        A life lost on the same step prevents the home: the frog did not survive that step.
+        """
+        lost_life = self._lives is not None and lives < self._lives
         if reward > 0:
             self._rows += 1
             self._max_rows = max(self._max_rows, self._rows)
-            if self._rows == HOME_ROW:
+            if self._rows == HOME_ROW and not lost_life:
                 self._homes += 1
                 self._rows = 0
-        if self._lives is not None and lives < self._lives:
+        if lost_life:
             self._rows = 0
         self._lives = lives
 
