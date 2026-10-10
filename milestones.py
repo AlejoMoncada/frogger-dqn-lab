@@ -5,6 +5,7 @@ Usage: uv run python milestones.py --run-dir results/run_X --episodes 20
 
 import argparse
 import csv
+import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -19,11 +20,13 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 from dqn_frogger.agent import DQNAgent  # noqa: E402
-from dqn_frogger.env import make_env  # noqa: E402
+from dqn_frogger.env import ENV_ID, make_env  # noqa: E402
 from dqn_frogger.leaderboard import (  # noqa: E402
     MEDAL_EMOJI,
     EpisodeOutcome,
+    LeaderboardEntry,
     LeaderboardRow,
+    leaderboard_document,
     render_markdown,
     summarize,
 )
@@ -101,13 +104,20 @@ def write_gif(path: Path, frames: list[np.ndarray]) -> None:
         imageio.mimsave(path, frames, duration=1 / GIF_FPS, loop=0)
 
 
-def write_screenshots(directory: Path, step: int, episodes: list[Episode]) -> None:
-    """Save the first frame of each medal, taken from the first episode that achieved it."""
+def write_screenshots(run_dir: Path, step: int, episodes: list[Episode]) -> dict[str, str]:
+    """Save the first frame of each medal from the first episode that achieved it.
+
+    Returns medal -> path relative to run_dir.
+    """
+    saved: dict[str, str] = {}
     for name in MEDAL_ORDER:
         for episode in episodes:
             if name in episode.medal_frames:
-                plt.imsave(directory / f"step_{step}_{name}.png", episode.medal_frames[name])
+                relative = f"screenshots/step_{step}_{name}.png"
+                plt.imsave(run_dir / relative, episode.medal_frames[name])
+                saved[name] = relative
                 break
+    return saved
 
 
 def write_csv(path: Path, rows: list[LeaderboardRow]) -> None:
@@ -174,6 +184,7 @@ def main() -> None:
     random_eps = evaluate(env, lambda _obs: int(env.action_space.sample()), args.episodes, True)
     write_gif(run_dir / "gifs" / "random.gif", random_eps[0].gif_frames)
     rows = [summarize("random", [e.outcome for e in random_eps])]
+    entries = [LeaderboardEntry(row=rows[0], step=None, screenshots={}, gif="gifs/random.gif")]
 
     steps: list[int] = []
     for step, path in checkpoints:
@@ -183,9 +194,14 @@ def main() -> None:
         episodes = evaluate(
             env, lambda obs, a=agent, g=rng: a.act(obs, EVAL_EPSILON, g), args.episodes, True
         )
-        write_screenshots(run_dir / "screenshots", step, episodes)
+        shots = write_screenshots(run_dir, step, episodes)
         write_gif(run_dir / "gifs" / f"step_{step}.gif", episodes[0].gif_frames)
         rows.append(summarize(f"{step:,}", [e.outcome for e in episodes]))
+        entries.append(
+            LeaderboardEntry(
+                row=rows[-1], step=step, screenshots=shots, gif=f"gifs/step_{step}.gif"
+            )
+        )
         steps.append(step)
         print(f"step={step} score={rows[-1].score_mean:.1f} rows_max={rows[-1].max_rows_max}")
     env.close()
@@ -199,6 +215,10 @@ def main() -> None:
         + legend_markdown()
     )
     (run_dir / "leaderboard.md").write_text(report, encoding="utf-8")
+    document = leaderboard_document(
+        algorithm="DQN", env_id=ENV_ID, run_id=run_dir.name, entries=entries
+    )
+    (run_dir / "leaderboard.json").write_text(json.dumps(document, indent=2), encoding="utf-8")
     plot_medals(run_dir / "milestones.png", steps, rows[1:])
     print(f"wrote {run_dir / 'leaderboard.md'}")
 

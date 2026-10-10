@@ -94,3 +94,45 @@ def render_markdown(rows: Sequence[LeaderboardRow]) -> str:
         cells += [medal_cell(name, row.medal_pct[name]) for name in MEDAL_ORDER]
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines) + "\n"
+
+
+SCHEMA_VERSION = 1
+
+
+@dataclass(frozen=True)
+class LeaderboardEntry:
+    """One leaderboard row plus its artifacts (paths are relative to the run directory)."""
+
+    row: LeaderboardRow
+    step: int | None  # None for the random baseline
+    screenshots: dict[str, str]  # medal -> screenshot path
+    gif: str
+
+
+def leaderboard_document(
+    *, algorithm: str, env_id: str, run_id: str, entries: Sequence[LeaderboardEntry]
+) -> dict[str, object]:
+    """Algorithm-agnostic JSON document; medal values are fractions in [0, 1]."""
+    rows = [
+        {
+            "label": entry.row.label,
+            "step": entry.step,
+            "episodes": entry.row.episodes,
+            "score_mean": entry.row.score_mean,
+            "score_std": entry.row.score_std,
+            "max_rows_mean": entry.row.max_rows_mean,
+            "max_rows_max": entry.row.max_rows_max,
+            "homes_mean": entry.row.homes_mean,
+            "medals": {name: pct / 100.0 for name, pct in entry.row.medal_pct.items()},
+            "screenshots": dict(entry.screenshots),
+            "gif": entry.gif,
+        }
+        for entry in entries
+    ]
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "algorithm": algorithm,
+        "env_id": env_id,
+        "run_id": run_id,
+        "rows": rows,
+    }
