@@ -164,7 +164,6 @@ def train(config: DQNConfig, output_dir: Path | str, overwrite: bool = False) ->
 
     env = make_env(config.seed)
     eval_env = make_env(config.seed + EVAL_SEED_OFFSET)
-    eval_rng = np.random.default_rng(config.seed + EVAL_SEED_OFFSET)
     obs_dim = int(env.observation_space.shape[0])
     n_actions = int(env.action_space.n)
 
@@ -177,7 +176,10 @@ def train(config: DQNConfig, output_dir: Path | str, overwrite: bool = False) ->
     )
     buffer = ReplayBuffer(config.buffer_size, obs_dim)
     episodes_log = _CsvLog(out / EPISODES_CSV, EPISODE_HEADER)
-    eval_log = _CsvLog(out / EVAL_CSV, ["global_step", "mean_return", "std_return", "episodes"])
+    eval_log = _CsvLog(
+        out / EVAL_CSV,
+        ["global_step", "mean_return", "std_return", "episodes", "first_seed", "last_seed"],
+    )
 
     obs, _ = env.reset(seed=config.seed)
     tracker = MilestoneTracker()
@@ -225,14 +227,24 @@ def train(config: DQNConfig, output_dir: Path | str, overwrite: bool = False) ->
             agent.sync_target()
 
         if step % config.eval_interval == 0 or step == config.total_steps:
+            eval_seed = config.seed + EVAL_SEED_OFFSET
             returns = run_episodes(
                 eval_env,
-                lambda o: agent.act(o, config.eval_epsilon, eval_rng),
+                lambda o, r: agent.act(o, config.eval_epsilon, r),
                 config.eval_episodes,
-                seed=config.seed + EVAL_SEED_OFFSET,
+                seed=eval_seed,
             )
             last_eval_mean = float(np.mean(returns))
-            eval_log.write([step, last_eval_mean, float(np.std(returns)), len(returns)])
+            eval_log.write(
+                [
+                    step,
+                    last_eval_mean,
+                    float(np.std(returns)),
+                    len(returns),
+                    eval_seed,
+                    eval_seed + len(returns) - 1,
+                ]
+            )
             print(f"[eval] step={step} mean_return={last_eval_mean:.1f}", flush=True)
 
         if step in checkpoint_steps:

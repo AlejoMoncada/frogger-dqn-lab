@@ -45,7 +45,7 @@ GIF_MAX_FRAMES = 900
 GIF_DOWNSCALE = 2
 GIF_FPS = 30
 CHECKPOINT_RE = re.compile(r"step_(\d+)\.pt$")
-Policy = Callable[[np.ndarray], int]
+Policy = Callable[[np.ndarray, np.random.Generator], int]
 
 
 @dataclass
@@ -60,13 +60,18 @@ class Episode:
 def play_episode(
     env, policy: Policy, seed: int, keep_gif: bool
 ) -> Episode:  # env is a gymnasium env with rgb_array rendering
-    """Play one episode, keeping the first frame of every medal and optionally a GIF."""
+    """Play one episode, keeping the first frame of every medal and optionally a GIF.
+
+    The policy gets its own generator seeded from the episode seed, so the episode does not
+    depend on how many episodes were played before it.
+    """
     obs, _ = env.reset(seed=seed)
+    policy_rng = np.random.default_rng(seed)
     tracker = MilestoneTracker()
     episode = Episode(outcome=EpisodeOutcome(score=0.0, milestones=tracker.result()))
     score, step, done = 0.0, 0, False
     while not done:
-        obs, reward, terminated, truncated, info = env.step(policy(obs))
+        obs, reward, terminated, truncated, info = env.step(policy(obs, policy_rng))
         tracker.observe(step, float(reward), int(info["lives"]))
         score += float(reward)
         frame = env.render()
@@ -201,7 +206,7 @@ def main() -> None:
     n_actions = int(env.action_space.n)
     obs_dim = int(env.observation_space.shape[0])
 
-    random_eps = evaluate(env, lambda _obs: int(env.action_space.sample()), args.episodes, True)
+    random_eps = evaluate(env, lambda _obs, rng: int(rng.integers(n_actions)), args.episodes, True)
     write_gif(run_dir / "gifs" / "random.gif", random_eps[0].gif_frames)
     rows = [summarize("random", [e.outcome for e in random_eps])]
     entries = [LeaderboardEntry(row=rows[0], step=None, screenshots={}, gif="gifs/random.gif")]
@@ -210,9 +215,8 @@ def main() -> None:
     for step, path in checkpoints:
         agent = DQNAgent(obs_dim=obs_dim, n_actions=n_actions)
         agent.load(path)
-        rng = np.random.default_rng(EVAL_SEED_BASE)
         episodes = evaluate(
-            env, lambda obs, a=agent, g=rng: a.act(obs, EVAL_EPSILON, g), args.episodes, True
+            env, lambda obs, rng, a=agent: a.act(obs, EVAL_EPSILON, rng), args.episodes, True
         )
         shots = write_screenshots(run_dir, step, episodes)
         write_gif(run_dir / "gifs" / f"step_{step}.gif", episodes[0].gif_frames)

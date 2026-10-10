@@ -8,7 +8,7 @@ import pytest
 
 from dqn_frogger.config import DQNConfig
 from dqn_frogger.seeds import EVAL_SEED_BASE
-from dqn_frogger.trainer import CHECKPOINT_NAME, EPISODES_CSV, EVAL_CSV, train
+from dqn_frogger.trainer import CHECKPOINT_NAME, EPISODES_CSV, EVAL_CSV, EVAL_SEED_OFFSET, train
 
 
 def test_train_smoke_writes_metrics_and_checkpoint(tmp_path: Path) -> None:
@@ -32,6 +32,8 @@ def test_train_smoke_writes_metrics_and_checkpoint(tmp_path: Path) -> None:
     with (tmp_path / EVAL_CSV).open(encoding="utf-8") as f:
         eval_rows = list(csv.DictReader(f))
     assert [int(r["global_step"]) for r in eval_rows] == [200, 400]
+    assert {int(r["first_seed"]) for r in eval_rows} == {42 + EVAL_SEED_OFFSET}
+    assert {int(r["last_seed"]) for r in eval_rows} == {42 + EVAL_SEED_OFFSET}
 
 
 def test_train_writes_periodic_checkpoints_milestones_and_timing(tmp_path: Path) -> None:
