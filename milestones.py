@@ -23,6 +23,7 @@ from dqn_frogger.agent import DQNAgent  # noqa: E402
 from dqn_frogger.env import ENV_ID, make_env  # noqa: E402
 from dqn_frogger.leaderboard import (  # noqa: E402
     MEDAL_EMOJI,
+    PROXY_MARK,
     EpisodeOutcome,
     LeaderboardEntry,
     LeaderboardRow,
@@ -34,6 +35,7 @@ from dqn_frogger.milestones import (  # noqa: E402
     HOME_MEDALS,
     HOME_ROW,
     MEDAL_ORDER,
+    PROXY_MEDALS,
     ROW_MEDALS,
     MilestoneTracker,
 )
@@ -167,7 +169,13 @@ def legend_markdown() -> str:
             rule = f"reach row {ROW_MEDALS[name]} in one life (home row is {HOME_ROW})"
         else:
             rule = f"{HOME_MEDALS[name]} frog(s) home in one episode"
-        lines.append(f"- {MEDAL_EMOJI[name]} `{name}`: {rule}")
+        mark = PROXY_MARK if name in PROXY_MEDALS else ""
+        lines.append(f"- {MEDAL_EMOJI[name]} `{name}`{mark}: {rule}")
+    lines += [
+        "",
+        f"{PROXY_MARK} Unverified proxy: home detection is not validated against RAM traces, "
+        "so this medal is an estimate.",
+    ]
     return "\n".join(lines) + "\n"
 
 

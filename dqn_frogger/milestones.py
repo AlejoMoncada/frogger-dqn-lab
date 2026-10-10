@@ -26,6 +26,9 @@ HOME_MEDALS: dict[str, int] = {
     "three_homes": 3,
     "level_cleared": HOMES_FOR_LEVEL_CLEARED,
 }
+# Medals derived from home detection. Home detection is not validated against RAM traces
+# (docs/notas-de-desarrollo.md, section 4), so these are proxies, not confirmed achievements.
+PROXY_MEDALS: frozenset[str] = frozenset(HOME_MEDALS)
 MEDAL_ORDER: tuple[str, ...] = (
     "first_hop",
     "road_crossed",
