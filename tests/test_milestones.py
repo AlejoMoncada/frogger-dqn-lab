@@ -63,6 +63,19 @@ def test_reaching_home_row_counts_a_home_and_restarts_the_frog() -> None:
     assert result.max_rows == HOME_ROW
 
 
+def test_home_row_reward_on_a_death_step_does_not_count_as_home() -> None:
+    events = _hops(HOME_ROW - 1) + [(1.0, 3)]  # row 12 reached and a life lost on the same step
+    result = _run(events)
+    assert result.homes == 0
+    assert "frog_home" not in result.medals
+
+
+def test_home_row_reward_without_death_still_counts_after_a_death_step() -> None:
+    events = _hops(HOME_ROW - 1) + [(1.0, 3)] + _hops(HOME_ROW, lives=3)
+    result = _run(events)
+    assert result.homes == 1  # the second life reaches home cleanly
+
+
 def test_three_homes_and_level_cleared_thresholds() -> None:
     result = _run(_hops(HOME_ROW) * 3)
     assert result.homes == 3
