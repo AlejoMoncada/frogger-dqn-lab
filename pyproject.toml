@@ -1,0 +1,28 @@
+[project]
+name = "frogger-dqn-lab"
+version = "0.1.0"
+description = "From-scratch DQN (PyTorch + Gymnasium) learning ALE/Frogger-v5 from RAM observations"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "ale-py==0.12.1",
+    "gymnasium>=1.0,<2",
+    "torch",
+    "numpy",
+    "matplotlib",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
