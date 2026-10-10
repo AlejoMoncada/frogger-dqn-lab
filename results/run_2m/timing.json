@@ -1,0 +1,9 @@
+{
+  "total_steps": 2000000,
+  "total_seconds": 2706.68,
+  "steps_per_second": 738.9,
+  "device": "cpu",
+  "torch_version": "2.14.1+cpu",
+  "cpu": "AMD64 Family 23 Model 113 Stepping 0, AuthenticAMD",
+  "python_version": "3.11.9"
+}

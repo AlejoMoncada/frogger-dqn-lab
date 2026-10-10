@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "algorithm": "DQN",
+  "env_id": "ALE/Frogger-v5",
+  "run_id": "run_2m",
+  "proxy_medals": [
+    "frog_home",
+    "three_homes",
+    "level_cleared"
+  ],
+  "rows": [
+    {
+      "label": "random",
+      "step": null,
+      "episodes": 20,
+      "score_mean": 9.4,
+      "score_std": 2.2891046284519194,
+      "max_rows_mean": 3.3,
+      "max_rows_max": 7,
+      "homes_mean": 0.0,
+      "homes_max": 0,
+      "medals": {
+        "first_hop": 1.0,
+        "road_crossed": 0.05,
+        "first_log": 0.05,
+        "mid_river": 0.0,
+        "frog_home": 0.0,
+        "three_homes": 0.0,
+        "level_cleared": 0.0
+      },
+      "screenshots": {},
+      "gif": "gifs/random.gif"
+    },
+    {
+      "label": "100,000",
+      "step": 100000,
+      "episodes": 20,
+      "score_mean": 12.15,
+      "score_std": 1.904599695474091,
+      "max_rows_mean": 3.5,
+      "max_rows_max": 7,
+      "homes_mean": 0.0,
+      "homes_max": 0,
+      "medals": {
+        "first_hop": 1.0,
+        "road_crossed": 0.05,
+        "first_log": 0.05,
+        "mid_river": 0.0,
+        "frog_home": 0.0,
+        "three_homes": 0.0,
+        "level_cleared": 0.0
+      },
+      "screenshots": {
+        "first_hop": "screenshots/step_100000_first_hop.png",
+        "road_crossed": "screenshots/step_100000_road_crossed.png",
+        "first_log": "screenshots/step_100000_first_log.png"
+      },
+      "gif": "gifs/step_100000.gif"
+    },
+    {
+      "label": "250,000",
+      "step": 250000,
+      "episodes": 20,
+      "score_mean": 20.6,
+      "score_std": 3.2310988842807027,
+      "max_rows_mean": 7.65,
+      "max_rows_max": 10,
+      "homes_mean": 0.0,
+      "homes_max": 0,
+      "medals": {
+        "first_hop": 1.0,
+        "road_crossed": 0.95,
+        "first_log": 0.95,
+        "mid_river": 0.2,
+        "frog_home": 0.0,
+        "three_homes": 0.0,
+        "level_cleared": 0.0
+      },
+      "screenshots": {
+        "first_hop": "screenshots/step_250000_first_hop.png",
+        "road_crossed": "screenshots/step_250000_road_crossed.png",
+        "first_log": "screenshots/step_250000_first_log.png",
+        "mid_river": "screenshots/step_250000_mid_river.png"
+      },
+      "gif": "gifs/step_250000.gif"
+    },
+    {
+      "label": "500,000",
+      "step": 500000,
+      "episodes": 20,
+      "score_mean": 18.0,
+      "score_std": 2.04939015319192,
+      "max_rows_mean": 8.5,
+      "max_rows_max": 9,
+      "homes_mean": 0.0,
+      "homes_max": 0,
+      "medals": {
+        "first_hop": 1.0,
+        "road_crossed": 0.9,
+        "first_log": 0.9,
+        "mid_river": 0.9,
+        "frog_home": 0.0,
+        "three_homes": 0.0,
+        "level_cleared": 0.0
+      },
+      "screenshots": {
+        "first_hop": "screenshots/step_500000_first_hop.png",
+        "road_crossed": "screenshots/step_500000_road_crossed.png",
+        "first_log": "screenshots/step_500000_first_log.png",
+        "mid_river": "screenshots/step_500000_mid_river.png"
+      },
+      "gif": "gifs/step_500000.gif"
+    },
+    {
+      "label": "1,000,000",
+      "step": 1000000,
+      "episodes": 20,
+      "score_mean": 32.0,
+      "score_std": 4.277849927241488,
+      "max_rows_mean": 9.7,
+      "max_rows_max": 10,
+      "homes_mean": 0.0,
+      "homes_max": 0,
+      "medals": {
+        "first_hop": 1.0,
+        "road_crossed": 1.0,
+        "first_log": 1.0,
+        "mid_river": 0.95,
+        "frog_home": 0.0,
+        "three_homes": 0.0,
+        "level_cleared": 0.0
+      },
+      "screenshots": {
+        "first_hop": "screenshots/step_1000000_first_hop.png",
+        "road_crossed": "screenshots/step_1000000_road_crossed.png",
+        "first_log": "screenshots/step_1000000_first_log.png",
+        "mid_river": "screenshots/step_1000000_mid_river.png"
+      },
+      "gif": "gifs/step_1000000.gif"
+    },
+    {
+      "label": "2,000,000",
+      "step": 2000000,
+      "episodes": 20,
+      "score_mean": 39.3,
+      "score_std": 2.9171904291629644,
+      "max_rows_mean": 9.9,
+      "max_rows_max": 10,
+      "homes_mean": 0.0,
+      "homes_max": 0,
+      "medals": {
+        "first_hop": 1.0,
+        "road_crossed": 1.0,
+        "first_log": 1.0,
+        "mid_river": 1.0,
+        "frog_home": 0.0,
+        "three_homes": 0.0,
+        "level_cleared": 0.0
+      },
+      "screenshots": {
+        "first_hop": "screenshots/step_2000000_first_hop.png",
+        "road_crossed": "screenshots/step_2000000_road_crossed.png",
+        "first_log": "screenshots/step_2000000_first_log.png",
+        "mid_river": "screenshots/step_2000000_mid_river.png"
+      },
+      "gif": "gifs/step_2000000.gif"
+    }
+  ]
+}
