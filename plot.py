@@ -57,6 +57,18 @@ def main() -> None:
             linewidth=2,
             label=f"moving average ({MOVING_AVG_WINDOW} episodes)",
         )
+        if "max_rows" in episodes[0]:
+            max_rows = np.array([float(r["max_rows"]) for r in episodes])
+            ax_rows = ax.twinx()
+            ax_rows.plot(
+                steps,
+                _moving_average(max_rows, MOVING_AVG_WINDOW),
+                color="tab:green",
+                linewidth=2,
+                linestyle="--",
+                label=f"max rows per life, moving average ({MOVING_AVG_WINDOW} episodes)",
+            )
+            ax_rows.set_ylabel("max rows in a life")
     if evals:
         ax.errorbar(
             [float(r["global_step"]) for r in evals],
@@ -73,7 +85,12 @@ def main() -> None:
     ax.set_title("DQN on ALE/Frogger-v5 (RAM)")
     ax.grid(alpha=0.3)
     if episodes or evals:
-        ax.legend(loc="upper left")
+        handles, labels = ax.get_legend_handles_labels()
+        for extra in fig.axes[1:]:
+            extra_handles, extra_labels = extra.get_legend_handles_labels()
+            handles += extra_handles
+            labels += extra_labels
+        ax.legend(handles, labels, loc="upper left")
     fig.tight_layout()
 
     output = args.input_dir / OUTPUT_NAME
