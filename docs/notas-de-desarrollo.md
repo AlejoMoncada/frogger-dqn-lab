@@ -158,3 +158,59 @@ Lecciones:
   exactamente los mismos números en coma flotante, así que las trayectorias se separan.
 - Medir antes de decidir la infraestructura, otra vez: la conclusión razonada era correcta en la
   dirección, pero el dato real (23 % más lenta) es más informativo que la suposición.
+
+## 7. Reto: píxeles y diseño mixto CPU/GPU
+
+Objetivo personal, fuera de la entrega: superar el techo de la fila 10 del DQN con RAM y MLP.
+La hipótesis es que la red necesita la imagen (posiciones y velocidades) y no solo 128 bytes de
+RAM. La variante con píxeles usa CPU para emular y preprocesar, y GPU para la CNN y el aprendizaje.
+
+### Hallazgos de `ale_py.vector_env.AtariVectorEnv` (ale-py 0.12.1)
+
+Medidos con sondas en la máquina de trabajo; el código está en `dqn_frogger/pixels/vector_env.py`.
+
+| Aspecto | Observado |
+|---|---|
+| Juego | `game="frogger"` (id de gym `ALE/Frogger-v5`) |
+| Observación | `uint8` de forma `(N, 4, 84, 84)`: 4 cuadros en gris, 84×84 |
+| Acciones | `Discrete(5)`; el entorno RAM de gym también reporta 5 |
+| Vidas | `info["lives"]` empieza en 4 y llega a 0 en el paso terminal |
+| Terminación | `terminated=True` con vidas en 0; es la observación terminal real |
+| Truncamiento | `truncated=True` al superar `max_num_frames_per_episode` (108 000 por defecto) |
+| Autoreset `NextStep` | El paso después de un fin devuelve la observación de reinicio, recompensa 0, sin fin. La acción se ignora |
+| Autoreset `SameStep` | La observación de reinicio llega en el mismo paso terminal; la terminal solo aparece en `info["final_obs"]` (visto en truncamiento) |
+| `Disabled` | No aceptado por ale-py 0.12.1 |
+| Render RGB | No existe en el entorno vectorial |
+
+Consecuencias para el diseño:
+
+- Se usa `NextStep`, que conserva la observación terminal exacta. El paso de reinicio cuenta
+  para el presupuesto de pasos, pero no se guarda ni se muestra al rastreador de hitos.
+- Las medallas y las GIFs no pueden salir del entorno vectorial. La reproducción usa un entorno
+  de gym con RGB y `AtariPreprocessing`. No es bit a bit igual al pipeline de entrenamiento:
+  el reinicio con no-op y fuego, y el RNG de acciones pegajosas, difieren. Dos semillas de
+  prueba divergieron en recompensas y terminales dentro de 400 pasos, así que la reproducción
+  no puede ir paso a paso junto al entorno vectorial.
+- La semilla de `reset` debe ser un entero o un arreglo con una semilla por entorno.
+
+### Memoria del búfer
+
+Cada transición guarda `obs` y `next_obs` como `uint8` (4, 84, 84): 2 × 28 224 bytes. Con una
+capacidad de 200 000 transiciones son unos **11,3 GB** de RAM, el doble de lo que sugiere
+solo un arreglo de observaciones. Cabe en 32 GB, pero el dato correcto es 11,3 GB.
+
+### Verificación de la infraestructura
+
+- `torch` 2.11.0+cu128 con `torch.cuda.is_available() == True`; dispositivo
+  NVIDIA GeForce GTX 1660 SUPER.
+- Pruebas: 70 pasan (54 de la RAM más 16 nuevas: red, Double DQN, n-step, búfer, entrenador).
+- Humo de 2 000 pasos (4 entornos, 1 evaluación de 1 episodio). Orientativo, no es una medición:
+
+| Dispositivo de la CNN | Pasos/s | Entorno | Acción | Aprendizaje | Evaluación |
+|---|---|---|---|---|---|
+| GPU (GTX 1660 SUPER) | 202.3 | 0.56 s | 0.79 s | 3.22 s | 5.21 s |
+| CPU | 104.1 | 0.50 s | 0.88 s | 12.37 s | 5.35 s |
+
+En el humo el aprendizaje en GPU ya es casi cuatro veces más rápido que en CPU (≈7 ms y ≈27 ms
+por actualización de lote 32). La evaluación domina el tiempo total porque corre con un solo
+entorno y un episodio largo; el pilotaje de la sección H2 medirá el régimen real.
