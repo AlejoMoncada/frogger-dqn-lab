@@ -151,35 +151,19 @@ objetivo tiene la misma arquitectura y el mismo número de parámetros.
 
 ## Resultados
 
+## Alcance de la evaluación
+
+Las evaluaciones periódicas y por checkpoints utilizan ε = 0.01 según el protocolo documentado, por lo que conservan un 1 % de selección aleatoria de acciones y no son estrictamente greedy. 
+Los valores se presentan como media ± desviación estándar entre episodios. Los hitos expresan la proporción de episodios que los alcanza al menos una vez, no la tasa de éxito de cada intento.
+
 ### Hardware y tiempo
 
 - **CPU:** `AMD64 Family 23 Model 113`, PyTorch 2.14.1+cpu, Python 3.11.9.
 - **Tiempo:** 2 706.68 s (≈ 45 min) para 2 000 000 de pasos, a **738.9 pasos/s** (`results/run_2m/timing.json`).
+- **Por qué CPU y no GPU:** con observación RAM el cuello de botella es la CPU. El emulador ALE es
+  secuencial, y la red es pequeña: copiar cada lote a la GPU cuesta casi lo mismo que el cómputo
+  (`docs/notas-de-desarrollo.md`, sección 3). No medimos el tiempo en GPU.
 - La estimación inicial fue de 1 a 3 horas. La medición del entrenamiento de 300 000 pasos fue de 6 min 21 s.
-
-### CPU frente a GPU (medido)
-
-Medimos la misma configuración y la misma semilla en CPU y en una **GTX 1660 SUPER**, dentro de un
-mismo entorno con PyTorch 2.11.0+cu128 (`benchmarks/cpu_vs_gpu.py`, resultados en
-`results/benchmark_cpu_gpu.json`):
-
-| Medición | CPU | GPU (GTX 1660 SUPER) |
-|---|---|---|
-| Emulador solo, acciones aleatorias, sin red | 2 191.4 pasos/s | — |
-| Una actualización de la red (lote de 64) | **2.135 ms** | 3.371 ms |
-| Entrenamiento de 100 000 pasos | **133.0 s (751.8 pasos/s)** | 172.3 s (580.6 pasos/s) |
-| Evaluación greedy a 100 000 pasos (10 episodios) | 8.3 ± 2.3 | 11.9 ± 1.8 |
-
-- **La GPU fue un 23 % más lenta.** La red tiene 100 101 parámetros y se entrena con lotes de 64: en la
-  GPU pesa más el costo fijo de copiar cada lote y lanzar los kernels que el cálculo en sí.
-- **El emulador marca el ritmo.** Sin red, el emulador da 2 191 pasos/s; con aprendizaje la CPU baja a
-  752 pasos/s. Ese tiempo extra se reparte entre elegir acciones y actualizar la red, y ninguna de
-  las dos partes se acelera en la GPU con una red tan pequeña.
-- **El resultado del aprendizaje no depende del dispositivo.** Las diferencias de puntaje a 100 000
-  pasos (8.3 frente a 11.9) son ruido de una sola corrida corta: el cómputo en coma flotante no es
-  idéntico entre CPU y GPU, así que las trayectorias divergen. Con una sola semilla por dispositivo
-  no hay evidencia de que uno aprenda mejor.
-- La GPU sí sería decisiva en la variante con píxeles y una CNN (`docs/notas-de-desarrollo.md`, sección 3).
 
 ### Curva de aprendizaje
 
@@ -189,6 +173,18 @@ La curva muestra el retorno de cada episodio (raw, sin recorte), su promedio mó
 evaluación greedy cada 25 000 pasos (media ± desviación estándar) y el máximo de filas por vida.
 
 ### Línea base a 300 000 pasos
+
+## Interpretación de la curva de aprendisaje 
+
+La curva reúne los retornos de 7 408 episodios de entrenamiento y 80 evaluaciones realizadas cada 25 000 pasos. Los retornos individuales muestran fluctuaciones, mientras el promedio móvil de 50 episodios permite observar la tendencia general. Este promedio suaviza la variación, pero no significa que todos los episodios tengan un desempeño similar.
+
+Las evaluaciones muestran una mejora general: el retorno medio pasa de 6.0 puntos a los 25 000 pasos a 40.2 al finalizar los 2 millones. Sin embargo, el progreso no es monótono. El mayor retorno medio evaluado fue de 41.0 a los 1.7 millones de pasos; posteriormente disminuyó hasta 34.2 a los 1.925 millones y se recuperó al final. Por tanto, la curva respalda aprendizaje, pero no demuestra una convergencia definitiva ni una mejora continua.
+
+En las últimas 20 evaluaciones, correspondientes al tramo posterior a 1.5 millones de pasos, las medias se encuentran entre 34.2 y 41.0 puntos. Esto indica que el agente mantiene un nivel de recompensa superior al observado al inicio, aunque todavía presenta variación entre evaluaciones.
+
+También es necesario distinguir entrenamiento y evaluación. Según la configuración documentada, el entrenamiento mantiene ε = 0.05 después del periodo de decaimiento, mientras las evaluaciones periódicas utilizan ε = 0.01. En los últimos 50 episodios de entrenamiento, el retorno promedio fue de 34.32 puntos. Su diferencia con la evaluación final no implica una contradicción: ambos registros corresponden a condiciones de actuación distintas y no son directamente equivalentes.
+
+Las barras de error representan la desviación estándar de los retornos de los 10 episodios de cada evaluación. Describen la dispersión entre partidas, no un intervalo de confianza ni la variabilidad entre entrenamientos independientes.
 
 Evaluación greedy de 20 episodios (`results/baseline_300k/evaluation.json`):
 
@@ -228,6 +224,19 @@ La fila de casa es la 12.
 
 ![Hitos por checkpoint](results/run_2m/milestones.png)
 
+### Interpretación de los hitos de avance
+
+La gráfica de hitos complementa el retorno acumulado al mostrar qué proporción de los 20 episodios evaluados alcanza determinadas etapas del juego. Estos porcentajes se calculan por episodio: alcanzar un hito al menos una vez no significa que el agente lo consiga en todas sus vidas o intentos.
+
+Entre 100 000 y 250 000 pasos, la proporción de episodios que cruza la carretera aumenta del 5 % al 95 %. En ese mismo intervalo, alcanzar el primer tronco también pasa del 5 % al 95 %. Esto respalda una mejora importante en el avance hacia el río.
+
+Entre 250 000 y 500 000 pasos, el hito de mitad del río aumenta del 20 % al 90 %, aunque el retorno medio disminuye de 20.6 a 18.0 puntos. Las métricas muestran aspectos distintos del comportamiento: obtener menos recompensa acumulada puede coincidir con alcanzar una etapa más avanzada. Los registros disponibles no permiten identificar una causa única de esta diferencia.
+
+A los 2 millones de pasos, los 20 episodios evaluados alcanzan los hitos de carretera, primer tronco y mitad del río. Sin embargo, el máximo registrado continúa en 10 filas y no se reportan casas. Entre 1 y 2 millones de pasos, el retorno medio aumenta de 32.0 a 39.3, pero el máximo avance registrado no aumenta. Por eso distinguimos mejora de recompensa y ampliación del alcance del agente.
+
+El hito first_hop aporta poca capacidad de comparación, porque también lo alcanza la política aleatoria en el 100 % de los episodios. Los indicadores frog_home, three_homes y level_cleared son proxies sin validación independiente y no deben interpretarse como logros confirmados del juego.
+
+
 ### Progresión en GIF
 
 Primer episodio de evaluación de cada checkpoint (`results/run_2m/gifs/`):
@@ -264,6 +273,30 @@ Primer episodio de evaluación de cada checkpoint (`results/run_2m/gifs/`):
 - **La medalla `first_hop` no discrimina.** La política aleatoria la alcanza en el 100 % de los episodios.
 
 ## Reflexión: qué fue lo más difícil
+
+> Borrador dos de para la reflexión de grupo
+
+
+Los resultados muestran que el agente aprendió a obtener mayor recompensa y a alcanzar etapas más avanzadas que la política aleatoria. 
+En la evaluación por checkpoints, el retorno medio después de 2 millones de pasos fue de 39.3 puntos, frente a 9.4 de la política aleatoria. 
+Esta mejora respalda el aprendizaje bajo el protocolo utilizado, aunque no significa que el agente haya resuelto Frogger.
+
+El aprendizaje se manifestó por etapas. Primero aumentó la frecuencia con la que el agente cruzaba la carretera y después mejoró su avance hacia la mitad del río. 
+Sin embargo, el retorno y los hitos no siempre evolucionaron en la misma dirección: a los 500 000 pasos, el puntaje medio disminuyó mientras aumentaba la proporción de episodios que alcanzaba la mitad del río.
+Esta observación nos llevó a evaluar el progreso con ambas métricas, porque una caída del retorno no demuestra por sí sola una pérdida de aprendizaje.
+
+También distinguimos obtener más recompensa de superar nuevas etapas. Entre 1 y 2 millones de pasos, el retorno medio aumentó, pero el máximo registrado permaneció en 10 filas y no se reportaron casas.
+Por tanto, la evidencia muestra una mejora en el desempeño parcial, con una dificultad pendiente para completar el recorrido. 
+Una posible explicación es que el agente acumule menos experiencia en las zonas finales, pero sería necesario analizar las visitas y pérdidas de vida por zona para comprobarlo.
+
+Las evaluaciones periódicas presentan fluctuaciones incluso al final del entrenamiento. 
+Aunque el desempeño se mantiene por encima del observado al inicio, no podemos afirmar una convergencia definitiva. 
+Además, las desviaciones estándar describen diferencias entre episodios de evaluación; una sola corrida larga no permite establecer qué tan consistente sería el aprendizaje con otras semillas de entrenamiento.
+
+Los hitos también tienen límites de interpretación. first_hop no distingue al agente entrenado de la política aleatoria, porque ambos lo alcanzan en todos los episodios evaluados. Los indicadores de casas son proxies cuya detección no fue validada contra trazas de RAM, por lo que no deben presentarse como logros confirmados.
+
+Concluimos que el DQN mostró aprendizaje parcial y que combinar recompensa con hitos permitió comprender mejor su comportamiento.
+Para fortalecer la evidencia, proponemos repetir entrenamientos con otras semillas, conservar la configuración y los resultados individuales de evaluación, y analizar las zonas donde se limita el avance antes de decidir qué cambios realizar en el agente.
 
 <!-- BORRADOR: reescribir con la voz del grupo antes de entregar -->
 
