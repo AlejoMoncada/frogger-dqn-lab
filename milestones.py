@@ -37,8 +37,8 @@ from dqn_frogger.milestones import (  # noqa: E402
     ROW_MEDALS,
     MilestoneTracker,
 )
+from dqn_frogger.seeds import EVAL_SEED_BASE  # noqa: E402
 
-EVAL_SEED_BASE = 900_000  # distinct from training seeds (42 and 10042)
 EVAL_EPSILON = 0.01
 GIF_FRAME_EVERY = 2  # keep every 2nd environment step
 GIF_MAX_FRAMES = 900

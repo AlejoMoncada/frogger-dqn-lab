@@ -4,7 +4,10 @@ import csv
 import json
 from pathlib import Path
 
+import pytest
+
 from dqn_frogger.config import DQNConfig
+from dqn_frogger.seeds import EVAL_SEED_BASE
 from dqn_frogger.trainer import CHECKPOINT_NAME, EPISODES_CSV, EVAL_CSV, train
 
 
@@ -56,3 +59,39 @@ def test_train_writes_periodic_checkpoints_milestones_and_timing(tmp_path: Path)
     timing = json.loads((tmp_path / "timing.json").read_text(encoding="utf-8"))
     assert {"total_seconds", "steps_per_second", "device", "torch_version", "cpu"} <= timing.keys()
     assert timing["steps_per_second"] > 0
+
+
+def test_train_writes_run_config_with_reproducibility_metadata(tmp_path: Path) -> None:
+    config = DQNConfig(
+        total_steps=400,
+        learning_starts=50,
+        buffer_size=500,
+        batch_size=16,
+        eval_interval=200,
+        eval_episodes=1,
+        target_update_interval=100,
+        checkpoint_steps=(100, 300),
+    )
+
+    train(config, tmp_path)
+
+    run_config = json.loads((tmp_path / "config.json").read_text(encoding="utf-8"))
+    assert run_config["config"]["seed"] == 42
+    assert run_config["config"]["total_steps"] == 400
+    assert run_config["env"]["id"] == "ALE/Frogger-v5"
+    assert run_config["env"]["obs_type"] == "ram"
+    assert {"torch", "gymnasium", "ale_py", "python"} <= run_config["versions"].keys()
+    assert "git_commit" in run_config  # a hash, or null when git is unavailable
+    assert run_config["checkpoints"] == [
+        "checkpoints/step_100.pt",
+        "checkpoints/step_300.pt",
+        "checkpoints/step_400.pt",
+    ]
+
+
+def test_train_rejects_seed_inside_leaderboard_evaluation_range(tmp_path: Path) -> None:
+    config = DQNConfig(total_steps=10, seed=EVAL_SEED_BASE + 5)
+
+    with pytest.raises(ValueError, match="leaderboard"):
+        train(config, tmp_path)
+    assert not (tmp_path / "config.json").exists()

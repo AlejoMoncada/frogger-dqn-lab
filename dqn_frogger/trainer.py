@@ -1,29 +1,37 @@
 """Training loop: environment interaction, replay, TD learning, logging and checkpointing."""
 
 import csv
+import gymnasium
 import json
 import platform
 import random
+import subprocess
 import time
+from dataclasses import asdict
+from importlib.metadata import version
 from pathlib import Path
 from typing import Any, TextIO
 
+import ale_py
 import numpy as np
 import torch
 
 from dqn_frogger.agent import DQNAgent
 from dqn_frogger.config import DQNConfig
-from dqn_frogger.env import make_env
+from dqn_frogger.env import ENV_ID, make_env
 from dqn_frogger.evaluation import run_episodes
 from dqn_frogger.milestones import MilestoneTracker, format_medals
 from dqn_frogger.replay_buffer import ReplayBuffer
 from dqn_frogger.schedule import epsilon_at
+from dqn_frogger.seeds import EVAL_SEED_BASE, EVAL_SEED_SPAN, validate_training_seed
 
 CHECKPOINT_NAME = "dqn_frogger.pt"
 CHECKPOINT_DIR = "checkpoints"
 EPISODES_CSV = "episodes.csv"
 EVAL_CSV = "eval.csv"
 TIMING_JSON = "timing.json"
+CONFIG_JSON = "config.json"
+REPO_ROOT = Path(__file__).resolve().parent.parent
 EPISODE_HEADER = [
     "episode",
     "global_step",
@@ -74,12 +82,53 @@ def _write_timing(
     return timing
 
 
+def _git_commit() -> str | None:
+    """Current HEAD commit of this repository, or None when git cannot tell."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout.strip() or None
+
+
+def _write_run_config(path: Path, config: DQNConfig) -> None:
+    """Record everything needed to reproduce the run, before any training happens."""
+    active_steps = config.active_checkpoint_steps()
+    run_config = {
+        "schema_version": 1,
+        "config": asdict(config),
+        "env": {"id": ENV_ID, "obs_type": "ram", "observation": "float32 in [0, 1], shape (128,)"},
+        "versions": {
+            "python": platform.python_version(),
+            "torch": torch.__version__,
+            "gymnasium": gymnasium.__version__,
+            "ale_py": version("ale-py"),
+            "numpy": np.__version__,
+        },
+        "git_commit": _git_commit(),
+        "eval_seed_base": EVAL_SEED_BASE,
+        "eval_seed_span": EVAL_SEED_SPAN,
+        "train_eval_seed_offset": EVAL_SEED_OFFSET,
+        "checkpoints": [f"{CHECKPOINT_DIR}/step_{step}.pt" for step in active_steps],
+    }
+    path.write_text(json.dumps(run_config, indent=2), encoding="utf-8")
+
+
 def train(config: DQNConfig, output_dir: Path | str) -> dict[str, Any]:
     """Train a DQN agent on Frogger RAM and return summary metrics."""
+    validate_training_seed(config.seed)
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     checkpoint_dir = out / CHECKPOINT_DIR
     checkpoint_dir.mkdir(exist_ok=True)
+    _write_run_config(out / CONFIG_JSON, config)
     checkpoint_steps = set(config.active_checkpoint_steps())
     random.seed(config.seed)
     np.random.seed(config.seed)
