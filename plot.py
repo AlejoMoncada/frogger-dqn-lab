@@ -90,11 +90,19 @@ def main() -> None:
             extra_handles, extra_labels = extra.get_legend_handles_labels()
             handles += extra_handles
             labels += extra_labels
-        ax.legend(handles, labels, loc="upper left")
+        # Below the axes, so the legend never covers the curves or the max-rows line.
+        ax.legend(
+            handles,
+            labels,
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.14),
+            ncol=2,
+            frameon=False,
+        )
     fig.tight_layout()
 
     output = args.input_dir / OUTPUT_NAME
-    fig.savefig(output, dpi=120)
+    fig.savefig(output, dpi=120, bbox_inches="tight")
     print(f"wrote {output}")
 
 
