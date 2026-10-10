@@ -9,6 +9,8 @@ dependencies = [
     "torch",
     "numpy",
     "matplotlib",
+    "imageio>=2.38.1",
+    "pillow>=12.3.0",
 ]
 
 [dependency-groups]
