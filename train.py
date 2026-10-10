@@ -27,6 +27,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--smoke", action="store_true", help="Use tiny values to check the pipeline quickly."
     )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Replace the run already in --output-dir (clears only the known run artifacts).",
+    )
     return parser.parse_args()
 
 
@@ -48,7 +53,10 @@ def main() -> None:
         overrides["checkpoint_steps"] = args.checkpoint_steps
     config = replace(config, **overrides)
 
-    metrics = train(config, args.output_dir)
+    try:
+        metrics = train(config, args.output_dir, overwrite=args.overwrite)
+    except FileExistsError as error:
+        raise SystemExit(f"error: {error}") from error
     print(f"done: {metrics}")
 
 

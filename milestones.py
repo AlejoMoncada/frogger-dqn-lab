@@ -92,6 +92,26 @@ def find_checkpoints(checkpoint_dir: Path) -> list[tuple[int, Path]]:
     return sorted(found)
 
 
+def find_run_checkpoints(run_dir: Path) -> list[tuple[int, Path]]:
+    """Checkpoints of one run: the list recorded in its config.json, else a glob fallback.
+
+    The manifest keeps stale step_<N>.pt files from other runs out of the leaderboard.
+    """
+    config_path = run_dir / "config.json"
+    if not config_path.exists():
+        return find_checkpoints(run_dir / "checkpoints")
+    manifest = json.loads(config_path.read_text(encoding="utf-8")).get("checkpoints")
+    if manifest is None:
+        return find_checkpoints(run_dir / "checkpoints")
+    found = []
+    for relative in manifest:
+        path = run_dir / relative
+        if not path.exists():
+            raise FileNotFoundError(f"config.json lists {relative} but the file is missing")
+        found.append((int(CHECKPOINT_RE.search(path.name).group(1)), path))
+    return sorted(found)
+
+
 def evaluate(env, policy: Policy, episodes: int, keep_gif_first: bool) -> list[Episode]:
     return [
         play_episode(env, policy, EVAL_SEED_BASE + i, keep_gif=keep_gif_first and i == 0)
@@ -171,7 +191,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     run_dir: Path = args.run_dir
-    checkpoints = find_checkpoints(run_dir / "checkpoints")
+    checkpoints = find_run_checkpoints(run_dir)
     if not checkpoints:
         raise SystemExit(f"no step_<N>.pt checkpoints in {run_dir / 'checkpoints'}")
     for sub in ("screenshots", "gifs"):

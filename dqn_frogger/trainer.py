@@ -5,6 +5,7 @@ import gymnasium
 import json
 import platform
 import random
+import shutil
 import subprocess
 import time
 from dataclasses import asdict
@@ -121,10 +122,36 @@ def _write_run_config(path: Path, config: DQNConfig) -> None:
     path.write_text(json.dumps(run_config, indent=2), encoding="utf-8")
 
 
-def train(config: DQNConfig, output_dir: Path | str) -> dict[str, Any]:
-    """Train a DQN agent on Frogger RAM and return summary metrics."""
+RUN_ARTIFACTS = (EPISODES_CSV, EVAL_CSV, TIMING_JSON, CONFIG_JSON, CHECKPOINT_NAME)
+
+
+def _holds_run(out: Path) -> bool:
+    checkpoints = out / CHECKPOINT_DIR
+    has_checkpoints = checkpoints.is_dir() and any(checkpoints.iterdir())
+    return (out / EPISODES_CSV).exists() or has_checkpoints
+
+
+def _clear_run_artifacts(out: Path) -> None:
+    """Remove only the files this trainer writes; anything else in the directory is kept."""
+    for name in RUN_ARTIFACTS:
+        (out / name).unlink(missing_ok=True)
+    shutil.rmtree(out / CHECKPOINT_DIR, ignore_errors=True)
+
+
+def train(config: DQNConfig, output_dir: Path | str, overwrite: bool = False) -> dict[str, Any]:
+    """Train a DQN agent on Frogger RAM and return summary metrics.
+
+    Refuses a directory that already holds a run (episodes.csv or checkpoints/) unless
+    `overwrite` is True, in which case only the known run artifacts are cleared first.
+    """
     validate_training_seed(config.seed)
     out = Path(output_dir)
+    if _holds_run(out):
+        if not overwrite:
+            raise FileExistsError(
+                f"{out} already holds a run; choose another --output-dir or pass --overwrite"
+            )
+        _clear_run_artifacts(out)
     out.mkdir(parents=True, exist_ok=True)
     checkpoint_dir = out / CHECKPOINT_DIR
     checkpoint_dir.mkdir(exist_ok=True)
