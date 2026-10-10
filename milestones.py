@@ -31,6 +31,10 @@ from dqn_frogger.leaderboard import (  # noqa: E402
     render_markdown,
     summarize,
 )
+from dqn_frogger.pixels.agent import PixelDQNAgent  # noqa: E402
+from dqn_frogger.pixels.config import default_device  # noqa: E402
+from dqn_frogger.pixels.trainer import ALGORITHM_LABEL as PIXEL_ALGORITHM  # noqa: E402
+from dqn_frogger.pixels.vector_env import make_playback_env  # noqa: E402
 from dqn_frogger.milestones import (  # noqa: E402
     HOME_MEDALS,
     HOME_ROW,
@@ -97,6 +101,27 @@ def find_checkpoints(checkpoint_dir: Path) -> list[tuple[int, Path]]:
         if match:
             found.append((int(match.group(1)), path))
     return sorted(found)
+
+
+def run_observation(run_dir: Path) -> str:
+    """'pixels' for runs written by train_pixels.py, 'ram' otherwise (including old runs)."""
+    config_path = run_dir / "config.json"
+    if not config_path.exists():
+        return "ram"
+    return json.loads(config_path.read_text(encoding="utf-8")).get("observation", "ram")
+
+
+def load_policy(path: Path, pixels: bool, n_actions: int, obs_dim: int) -> Policy:
+    """Greedy (eps=0.01) policy from one checkpoint, RAM MLP or pixel CNN."""
+    if pixels:
+        agent = PixelDQNAgent(n_actions=n_actions, device=default_device())
+        agent.load(path)
+        return lambda obs, rng: int(
+            agent.act(np.asarray(obs, dtype=np.uint8)[None], EVAL_EPSILON, rng)[0]
+        )
+    agent = DQNAgent(obs_dim=obs_dim, n_actions=n_actions)
+    agent.load(path)
+    return lambda obs, rng: agent.act(obs, EVAL_EPSILON, rng)
 
 
 def find_run_checkpoints(run_dir: Path) -> list[tuple[int, Path]]:
@@ -254,9 +279,13 @@ def main() -> None:
     for sub in ("screenshots", "gifs"):
         (run_dir / sub).mkdir(exist_ok=True)
 
-    env = make_env(EVAL_SEED_BASE, render_mode="rgb_array")
+    pixels = run_observation(run_dir) == "pixels"
+    if pixels:
+        env = make_playback_env(EVAL_SEED_BASE)
+    else:
+        env = make_env(EVAL_SEED_BASE, render_mode="rgb_array")
     n_actions = int(env.action_space.n)
-    obs_dim = int(env.observation_space.shape[0])
+    obs_dim = 0 if pixels else int(env.observation_space.shape[0])
 
     random_eps = evaluate(env, lambda _obs, rng: int(rng.integers(n_actions)), args.episodes, True)
     write_gif(run_dir / "gifs" / "random.gif", random_eps[0].gif_frames)
@@ -265,11 +294,8 @@ def main() -> None:
 
     steps: list[int] = []
     for step, path in checkpoints:
-        agent = DQNAgent(obs_dim=obs_dim, n_actions=n_actions)
-        agent.load(path)
-        episodes = evaluate(
-            env, lambda obs, rng, a=agent: a.act(obs, EVAL_EPSILON, rng), args.episodes, True
-        )
+        policy = load_policy(path, pixels, n_actions, obs_dim)
+        episodes = evaluate(env, policy, args.episodes, True)
         shots = write_screenshots(run_dir, step, episodes)
         write_gif(run_dir / "gifs" / f"step_{step}.gif", episodes[0].gif_frames)
         rows.append(summarize(f"{step:,}", [e.outcome for e in episodes]))
@@ -292,7 +318,10 @@ def main() -> None:
     )
     (run_dir / "leaderboard.md").write_text(report, encoding="utf-8")
     document = leaderboard_document(
-        algorithm="DQN", env_id=ENV_ID, run_id=run_dir.name, entries=entries
+        algorithm=PIXEL_ALGORITHM if pixels else "DQN",
+        env_id=ENV_ID,
+        run_id=run_dir.name,
+        entries=entries,
     )
     (run_dir / "leaderboard.json").write_text(json.dumps(document, indent=2), encoding="utf-8")
     plot_medals(run_dir / "milestones.png", steps, [row.medal_pct for row in rows[1:]])
