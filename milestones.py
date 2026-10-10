@@ -179,10 +179,31 @@ def legend_markdown() -> str:
     return "\n".join(lines) + "\n"
 
 
-def plot_medals(path: Path, steps: list[int], rows: list[LeaderboardRow]) -> None:
+# Marker and line style per medal. Medals often share values (e.g. 100% at the same
+# checkpoints), so the pair must be unique to keep every line visible.
+MEDAL_STYLES: dict[str, tuple[str, str]] = {
+    "first_hop": ("o", "-"),
+    "road_crossed": ("s", "--"),
+    "first_log": ("^", ":"),
+    "mid_river": ("D", "-."),
+    "frog_home": ("v", "-"),
+    "three_homes": ("P", "--"),
+    "level_cleared": ("X", ":"),
+}
+
+
+def plot_medals(path: Path, steps: list[int], medal_pcts: list[dict[str, float]]) -> None:
+    """Medal percentage per checkpoint; one marker and line style per medal."""
     fig, ax = plt.subplots(figsize=(9, 5))
     for name in MEDAL_ORDER:
-        ax.plot(steps, [row.medal_pct[name] for row in rows], marker="o", label=name)
+        marker, linestyle = MEDAL_STYLES[name]
+        ax.plot(
+            steps,
+            [pct[name] for pct in medal_pcts],
+            marker=marker,
+            linestyle=linestyle,
+            label=name,
+        )
     ax.set_xlabel("training step")
     ax.set_ylabel("% of evaluation episodes")
     ax.set_ylim(-2, 102)
@@ -190,20 +211,43 @@ def plot_medals(path: Path, steps: list[int], rows: list[LeaderboardRow]) -> Non
     ax.grid(alpha=0.3)
     ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5))
     fig.tight_layout()
-    fig.savefig(path, dpi=120)
+    fig.savefig(path, dpi=120, bbox_inches="tight")
     plt.close(fig)
+
+
+def rebuild_medal_plot(run_dir: Path) -> Path:
+    """Redraw milestones.png from an existing leaderboard.json, without any evaluation."""
+    document = json.loads((run_dir / "leaderboard.json").read_text(encoding="utf-8"))
+    checkpoint_rows = [row for row in document["rows"] if row["step"] is not None]
+    steps = [int(row["step"]) for row in checkpoint_rows]
+    # leaderboard.json stores fractions in [0, 1]; the plot uses percentages.
+    medal_pcts = [
+        {name: 100.0 * fraction for name, fraction in row["medals"].items()}
+        for row in checkpoint_rows
+    ]
+    output = run_dir / "milestones.png"
+    plot_medals(output, steps, medal_pcts)
+    return output
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build the milestone leaderboard for a run.")
     parser.add_argument("--run-dir", type=Path, required=True, help="Run with checkpoints/.")
     parser.add_argument("--episodes", type=int, default=20, help="Greedy episodes per checkpoint.")
+    parser.add_argument(
+        "--plot-only",
+        action="store_true",
+        help="Only redraw milestones.png from leaderboard.json; runs no evaluation.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     run_dir: Path = args.run_dir
+    if args.plot_only:
+        print(f"wrote {rebuild_medal_plot(run_dir)}")
+        return
     checkpoints = find_run_checkpoints(run_dir)
     if not checkpoints:
         raise SystemExit(f"no step_<N>.pt checkpoints in {run_dir / 'checkpoints'}")
@@ -251,7 +295,7 @@ def main() -> None:
         algorithm="DQN", env_id=ENV_ID, run_id=run_dir.name, entries=entries
     )
     (run_dir / "leaderboard.json").write_text(json.dumps(document, indent=2), encoding="utf-8")
-    plot_medals(run_dir / "milestones.png", steps, rows[1:])
+    plot_medals(run_dir / "milestones.png", steps, [row.medal_pct for row in rows[1:]])
     print(f"wrote {run_dir / 'leaderboard.md'}")
 
 
