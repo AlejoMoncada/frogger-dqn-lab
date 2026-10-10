@@ -1,0 +1,18 @@
+{
+ "torch": "2.11.0+cu128",
+ "gpu": "NVIDIA GeForce GTX 1660 SUPER",
+ "steps": 100000,
+ "env_only_steps_per_s": 2191.4,
+ "update_ms_cpu": 2.135,
+ "update_ms_cuda": 3.371,
+ "train_cpu": {
+  "seconds": 133.02,
+  "steps_per_s": 751.8,
+  "last_eval_row": "100000,8.3,2.3259406699226015,10,10042,10051"
+ },
+ "train_cuda": {
+  "seconds": 172.25,
+  "steps_per_s": 580.6,
+  "last_eval_row": "100000,11.9,1.7578395831246945,10,10042,10051"
+ }
+}

@@ -133,3 +133,28 @@ completo está en `docs/codex-review.md`.
 Eso es solo parcialmente cierto: `uv.lock` ya estaba versionado y fija versiones exactas (por
 ejemplo `gymnasium` 1.4.0, `ale-py` 0.12.1 y `torch` 2.14.1+cpu). `pyproject.toml` declara
 rangos, pero el lockfile controla las versiones instaladas. No se cambiaron las restricciones.
+
+## 6. CPU frente a GPU: la medición
+
+La sección 3 concluyó, sin medir, que la GPU no ayudaría. Al medirlo, el resultado fue más fuerte:
+la GPU fue **más lenta**.
+
+Método: un entorno aparte con PyTorch 2.11.0+cu128 (para no tocar el proyecto, que usa la versión
+solo CPU), misma configuración y misma semilla en ambos dispositivos. Script:
+`benchmarks/cpu_vs_gpu.py`; resultados: `results/benchmark_cpu_gpu.json`.
+
+| Medición | CPU | GTX 1660 SUPER |
+|---|---|---|
+| Emulador solo, sin red | 2 191.4 pasos/s | — |
+| Una actualización (lote de 64) | 2.135 ms | 3.371 ms |
+| Entrenamiento de 100 000 pasos | 133.0 s (751.8 pasos/s) | 172.3 s (580.6 pasos/s) |
+| Evaluación a 100 000 pasos | 8.3 ± 2.3 | 11.9 ± 1.8 |
+
+Lecciones:
+
+- Con una red de ~100 000 parámetros y lotes de 64, el costo fijo de mover datos a la GPU y lanzar
+  kernels supera al cálculo. "Tener GPU" no implica "entrenar más rápido".
+- La diferencia de puntaje es ruido de una corrida corta con una semilla: CPU y GPU no producen
+  exactamente los mismos números en coma flotante, así que las trayectorias se separan.
+- Medir antes de decidir la infraestructura, otra vez: la conclusión razonada era correcta en la
+  dirección, pero el dato real (23 % más lenta) es más informativo que la suposición.

@@ -155,10 +155,31 @@ objetivo tiene la misma arquitectura y el mismo número de parámetros.
 
 - **CPU:** `AMD64 Family 23 Model 113`, PyTorch 2.14.1+cpu, Python 3.11.9.
 - **Tiempo:** 2 706.68 s (≈ 45 min) para 2 000 000 de pasos, a **738.9 pasos/s** (`results/run_2m/timing.json`).
-- **Por qué CPU y no GPU:** con observación RAM el cuello de botella es la CPU. El emulador ALE es
-  secuencial, y la red es pequeña: copiar cada lote a la GPU cuesta casi lo mismo que el cómputo
-  (`docs/notas-de-desarrollo.md`, sección 3). No medimos el tiempo en GPU.
 - La estimación inicial fue de 1 a 3 horas. La medición del entrenamiento de 300 000 pasos fue de 6 min 21 s.
+
+### CPU frente a GPU (medido)
+
+Medimos la misma configuración y la misma semilla en CPU y en una **GTX 1660 SUPER**, dentro de un
+mismo entorno con PyTorch 2.11.0+cu128 (`benchmarks/cpu_vs_gpu.py`, resultados en
+`results/benchmark_cpu_gpu.json`):
+
+| Medición | CPU | GPU (GTX 1660 SUPER) |
+|---|---|---|
+| Emulador solo, acciones aleatorias, sin red | 2 191.4 pasos/s | — |
+| Una actualización de la red (lote de 64) | **2.135 ms** | 3.371 ms |
+| Entrenamiento de 100 000 pasos | **133.0 s (751.8 pasos/s)** | 172.3 s (580.6 pasos/s) |
+| Evaluación greedy a 100 000 pasos (10 episodios) | 8.3 ± 2.3 | 11.9 ± 1.8 |
+
+- **La GPU fue un 23 % más lenta.** La red tiene 100 101 parámetros y se entrena con lotes de 64: en la
+  GPU pesa más el costo fijo de copiar cada lote y lanzar los kernels que el cálculo en sí.
+- **El emulador marca el ritmo.** Sin red, el emulador da 2 191 pasos/s; con aprendizaje la CPU baja a
+  752 pasos/s. Ese tiempo extra se reparte entre elegir acciones y actualizar la red, y ninguna de
+  las dos partes se acelera en la GPU con una red tan pequeña.
+- **El resultado del aprendizaje no depende del dispositivo.** Las diferencias de puntaje a 100 000
+  pasos (8.3 frente a 11.9) son ruido de una sola corrida corta: el cómputo en coma flotante no es
+  idéntico entre CPU y GPU, así que las trayectorias divergen. Con una sola semilla por dispositivo
+  no hay evidencia de que uno aprenda mejor.
+- La GPU sí sería decisiva en la variante con píxeles y una CNN (`docs/notas-de-desarrollo.md`, sección 3).
 
 ### Curva de aprendizaje
 
