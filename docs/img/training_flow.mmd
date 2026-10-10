@@ -1,0 +1,15 @@
+flowchart TD
+    A["Entorno ALE/Frogger-v5 (RAM normalizada, 128 valores)"] --> B["Acción ε-greedy sobre la red en línea"]
+    B --> C["env.step(a) devuelve s', r, terminated, truncated"]
+    C --> D["Replay buffer: guardar (s, a, r, s', done)"]
+    D --> E{"step >= 10 000 y step mod 4 = 0?"}
+    E -- si --> F["Muestra uniforme de 64 transiciones"]
+    E -- no --> G{"step mod 2 000 = 0?"}
+    F --> H["Q(s, a) con la red en línea"]
+    F --> I["Objetivo y = r + gamma (1 - done) max Q_objetivo(s', a')"]
+    H --> J["Pérdida Huber entre Q(s, a) e y, Adam y clip de norma 10"]
+    I --> J
+    J --> G
+    G -- si --> K["Copia dura de pesos a la red objetivo"]
+    G -- no --> A
+    K --> A

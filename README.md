@@ -71,6 +71,11 @@ Configuración por defecto de la versión `v5` de ALE: `frameskip = 4` y `repeat
 
 ## Flujo de entrenamiento
 
+<p align="center"><img src="docs/img/training_flow.png" width="520" alt="Diagrama del flujo de entrenamiento del DQN"></p>
+
+<details>
+<summary>Código fuente del diagrama (Mermaid)</summary>
+
 ```mermaid
 flowchart TD
     A["Entorno ALE/Frogger-v5 (RAM normalizada, 128 valores)"] --> B["Acción ε-greedy sobre la red en línea"]
@@ -88,6 +93,8 @@ flowchart TD
     G -- no --> A
     K --> A
 ```
+
+</details>
 
 ### Componentes
 
