@@ -28,7 +28,7 @@ repo would confuse graders, so DQN lives in this separate, independent project.
 - [x] T2b Milestone/medal system: periodic checkpoints, per-life row progress logging, milestone
       leaderboard per checkpoint, screenshots on first medal, GIF per checkpoint (route: delegated writer, Haiku).
       Home detection is NOT verified (fallback: row 12 counts as a home); see the evidence below.
-- [ ] T2c Long run with checkpoints (2M-5M steps) + leaderboard + CPU vs GPU timing (route: inline background)
+- [x] T2c Long run with checkpoints (2M-5M steps) + leaderboard + CPU vs GPU timing (route: inline background)
 - [x] T3 README with results, medals table, screenshots and diagram (route: delegated writer, Haiku; evidence below)
 - [ ] T4 Create public GitHub repo and push (user decision; not authorized yet)
 - [x] T5 `milestones.py` also exports `leaderboard.json` with an algorithm-agnostic schema
@@ -98,3 +98,9 @@ single-pr not applicable (new repo); work-unit commits on `main` after the initi
 
 ## Next step
 Group rewrites the README reflection; T2c (long run, 2M-5M steps) and the home-detection follow-up remain open.
+
+### Run 2M + native review evidence (2026-10-10)
+- T2c: 2M steps on CPU in 2706.68 s (738.9 steps/s); leaderboard regenerated with fixed home rule; final greedy 39.3 ± 2.9 (20 ep) vs random 9.4 ± 2.3; max row 10, no frog home. Commit `c916867`.
+- gentle-ai native review 1 (base a3351d0..fixes, high risk, 4 lenses): approved, acknowledged (lineage review-ef1019448ee47fe5).
+- gentle-ai native review 2: full slice since c596580 refused with `lens_context_budget_exceeded` (2M CSV data); reduced to code/docs since `c916867` (7 files, 464 lines, medium, 1 lens): approved, acknowledged (lineage review-d95dd668dad0b968). The data-only commit `c916867` was not lens-reviewed.
+- `.atl/` (local skill registry) excluded via `.git/info/exclude`, not committed.
