@@ -26,7 +26,7 @@ does what it is best at.
 
 ## Tasks
 - [x] H1 Pixel CNN DQN with AtariVectorEnv, Double DQN, n-step, CUDA support + tests (route: delegated writer, Haiku)
-- [ ] H2 Pilot measurement: 100k steps mixed (CPU envs + GPU learner) vs all-CPU; steps/s, GPU util (route: inline background)
+- [x] H2 Pilot measurement: 100k steps mixed (CPU envs + GPU learner) vs all-CPU; steps/s, GPU util (route: inline background)
 - [ ] H3 Decide budget from pilot; long run with checkpoints; leaderboard + GIFs (route: inline background)
 - [ ] H4 Verify home detection with a real trajectory if any frog reaches row 12 (route: delegated)
 - [ ] H5 Compare RAM+MLP vs pixels+CNN in one table; notes section (route: delegated writer)
@@ -56,5 +56,12 @@ does what it is best at.
   of RAM, not ~5.6 GB. Playback (GIFs) uses a gym env with `AtariPreprocessing`, not the vector
   env, because the vector env has no RGB render and a gym env does not reproduce its trajectories.
 
+- H2 pilot (100k env steps, 8 envs, same config/seed):
+  - Mixed (CPU envs + GPU CNN): 164.7 s, 607.0 steps/s; env 21.4 s, action 14.9 s, learner 119.7 s.
+    GPU util mean 45.6% (max 56%) over 86 samples; GPU memory max 5431 MiB (whole card).
+  - All-CPU: 814.6 s, 122.8 steps/s; env 20.7 s, action 30.4 s, learner 755.5 s.
+  - Mixed is 4.9x faster; the learner is 73% of mixed time, so the loop is learner-bound and
+    sequential (GPU ~46% busy). Eval at 100k: 10.0 in both (5 episodes; too early to compare learning).
+
 ## Next step
-H2: pilot 100k steps, mixed (CPU envs + GPU learner) vs all-CPU, to measure steps/s and GPU use.
+H3: choose the long-run budget (user decision).
