@@ -101,3 +101,35 @@ inicio sin perder una vida. El rastreador usa el respaldo indicado en el plan: *
 fila 12 cuenta como una casa** (y reinicia la fila a 0 sin perder vida). Esa regla es una
 suposición sin verificar. Las medallas `frog_home`, `three_homes` y `level_cleared` quedan
 marcadas como no verificadas hasta que una trayectoria real llegue a casa.
+
+## 5. Revisión independiente
+
+**Primera ejecución fallida.** La primera revisión con Codex falló por el entorno de Windows: el
+sandbox de solo lectura devolvió `helper_unknown_error`. El proceso terminó con código de salida
+0, pero no leyó ningún archivo. Lección: verificar el contenido de la salida de la herramienta,
+no solo el código de salida.
+
+**Segunda ejecución.** La revisión recibió el código fuente por entrada estándar. El informe
+completo está en `docs/codex-review.md`.
+
+**Hallazgos y resoluciones** (detalle en la sección «Resolution» de ese documento):
+
+1. Reutilizar un directorio de salida mezclaba checkpoints de distintas ejecuciones. Ahora el
+   entrenamiento se niega a usar un directorio con una ejecución previa; `--overwrite` borra
+   solo los artefactos conocidos. El leaderboard toma los checkpoints del `config.json`.
+2. Las medallas de casa son un proxy no verificado. Una casa ya no cuenta si la rana muere en el
+   mismo paso. Las medallas `frog_home`, `three_homes` y `level_cleared` se marcan como proxy en
+   `leaderboard.json` y `leaderboard.md`. Falta validar la detección contra trazas de RAM.
+3. Faltaban datos para reproducir una ejecución. `config.json` se escribe al iniciar, y las
+   semillas de entrenamiento dentro del rango de evaluación del leaderboard se rechazan.
+4. Faltaban pruebas del entrenador y de los medios. Se añadieron pruebas con un entorno
+   simulado (terminación frente a truncamiento, sincronización del objetivo, recompensas
+   recortadas) y pruebas de lectura de PNG y GIF.
+5. La política de evaluación dependía del historial. Ahora cada episodio usa su propio generador
+   aleatorio, derivado de la semilla del episodio.
+6. `leaderboard.json` omitía `homes_max`. Ahora se incluye y el esquema tiene una prueba.
+
+**Corrección sobre dependencias.** La revisión afirma que las dependencias no están congeladas.
+Eso es solo parcialmente cierto: `uv.lock` ya estaba versionado y fija versiones exactas (por
+ejemplo `gymnasium` 1.4.0, `ale-py` 0.12.1 y `torch` 2.14.1+cpu). `pyproject.toml` declara
+rangos, pero el lockfile controla las versiones instaladas. No se cambiaron las restricciones.
