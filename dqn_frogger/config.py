@@ -2,6 +2,16 @@
 
 from dataclasses import dataclass
 
+DEFAULT_CHECKPOINT_STEPS = (
+    100_000,
+    250_000,
+    500_000,
+    1_000_000,
+    2_000_000,
+    3_000_000,
+    5_000_000,
+)
+
 
 @dataclass
 class DQNConfig:
@@ -23,7 +33,14 @@ class DQNConfig:
     eval_episodes: int = 10
     eval_interval: int = 25_000
     eval_epsilon: float = 0.01
+    checkpoint_steps: tuple[int, ...] = DEFAULT_CHECKPOINT_STEPS
     device: str = "cpu"
+
+    def active_checkpoint_steps(self) -> tuple[int, ...]:
+        """Checkpoint steps not beyond `total_steps`, always including the final step."""
+        steps = {s for s in self.checkpoint_steps if 0 < s <= self.total_steps}
+        steps.add(self.total_steps)
+        return tuple(sorted(steps))
 
     @classmethod
     def smoke(cls) -> "DQNConfig":
@@ -35,4 +52,5 @@ class DQNConfig:
             eval_interval=1_000,
             eval_episodes=1,
             target_update_interval=200,
+            checkpoint_steps=(1_000, 2_000),
         )
