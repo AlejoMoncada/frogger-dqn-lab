@@ -29,7 +29,7 @@ repo would confuse graders, so DQN lives in this separate, independent project.
       leaderboard per checkpoint, screenshots on first medal, GIF per checkpoint (route: delegated writer, Haiku).
       Home detection is NOT verified (fallback: row 12 counts as a home); see the evidence below.
 - [ ] T2c Long run with checkpoints (2M-5M steps) + leaderboard + CPU vs GPU timing (route: inline background)
-- [ ] T3 README with results, medals table, screenshots and diagram (route: delegated writer, Haiku)
+- [x] T3 README with results, medals table, screenshots and diagram (route: delegated writer, Haiku; evidence below)
 - [ ] T4 Create public GitHub repo and push (user decision; not authorized yet)
 - [x] T5 `milestones.py` also exports `leaderboard.json` with an algorithm-agnostic schema
       (algorithm, run_id, checkpoint step, score mean/std, max_rows, medal percentages, screenshot/gif paths)
@@ -85,5 +85,16 @@ single-pr not applicable (new repo); work-unit commits on `main` after the initi
 - Dependencies: `uv.lock` already pinned exact versions; no pins changed.
 - Not done: validation of home detection against RAM traces (still open; medals stay proxies).
 
+### T3 evidence (final README and plot fixes)
+- Route: delegated direct, single writer (Haiku). Plot fixes followed RED (`tests/test_milestones_plot.py`, 4 failing before `--plot-only`/`MEDAL_STYLES` existed).
+- `uv run pytest -q` -> `54 passed` (50 previous + 4 new).
+- `uv run python plot.py --input-dir results/run_2m`: `learning_curve.png` regenerated; legend moved below the axes (viewed).
+- `uv run python milestones.py --run-dir results/run_2m --plot-only`: `milestones.png` regenerated with a unique marker and line style per medal; no evaluation run (viewed).
+- README path check: every local image, GIF and link referenced in `README.md` exists (`OK` for all; the uv docs URL was not fetched).
+- Parameter count verified: `QNetwork(128, 5, (256, 256))` = 100 101 parameters.
+- Environment verified: `Box(0, 1, (128,), float32)`, `Discrete(5)`, frameskip 4, sticky actions 0.25, `terminated` at lives 0.
+- Commits on `main`: see `git log` for `fix: keep plot legends off the data`, `feat: add plot-only mode to milestones`, `docs: write final readme`.
+- Open: the README reflection is a DRAFT (marked in the file) and must be rewritten by the group. Home detection remains unverified.
+
 ## Next step
-T2c (long run with checkpoints, 2M-5M steps) and the home-detection follow-up.
+Group rewrites the README reflection; T2c (long run, 2M-5M steps) and the home-detection follow-up remain open.
