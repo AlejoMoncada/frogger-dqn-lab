@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>La carrera del sapo</title>
+  <meta name="description" content="Un agente DQN aprende Frogger desde cero. Medallas por punto de control, corridas comparadas y lecciones del experimento.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Silkscreen&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    // Apply a saved theme before first paint. Storage can be blocked, so every access is guarded.
+    (function () {
+      try {
+        var saved = localStorage.getItem("historia-tema");
+        if (saved === "light" || saved === "dark") {
+          document.documentElement.setAttribute("data-theme", saved);
+        }
+      } catch (error) { /* storage unavailable: follow the system theme */ }
+    })();
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#hero">Ir al contenido</a>
+
+  <header class="masthead">
+    <p class="kicker">Reto personal · DQN en ALE/Frogger-v5</p>
+    <button type="button" id="theme-toggle" class="theme-toggle" aria-pressed="false">Tema oscuro</button>
+  </header>
+
+  <main class="page">
+    <section id="hero" class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <h1 id="hero-title">La carrera del sapo</h1>
+        <p class="thesis">Un agente aprende Frogger desde cero, sin ejemplos humanos. Las medallas muestran qué aprendió en cada punto de control.</p>
+        <nav class="toc" aria-label="Secciones">
+          <a href="#problema">El problema</a>
+          <a href="#aprende">Cómo aprende</a>
+          <a href="#carrera">La carrera</a>
+          <a href="#experimento">El experimento</a>
+          <a href="#lecciones">Lecciones</a>
+        </nav>
+      </div>
+      <div id="hero-pair" class="hero-pair" aria-live="polite">
+        <noscript><p>Esta página necesita JavaScript para mostrar los datos.</p></noscript>
+      </div>
+    </section>
+
+    <section id="problema" class="problem" aria-labelledby="t-problema">
+      <h2 id="t-problema">El problema</h2>
+      <div class="problem-grid">
+        <div class="obs-compare">
+          <h3>Lo que ve el agente</h3>
+          <div class="obs-option">
+            <p class="obs-name">RAM</p>
+            <p>128 bytes de memoria de la consola. Es la entrega del taller.</p>
+          </div>
+          <div class="obs-option">
+            <p class="obs-name">Píxeles</p>
+            <p>Cuatro cuadros seguidos en gris, de 84 × 84 píxeles. La red convolucional debe encontrar al sapo y a los autos.</p>
+          </div>
+        </div>
+
+        <div class="rules">
+          <h3>Acciones</h3>
+          <ol class="actions" aria-label="Acciones posibles">
+            <li><kbd>0</kbd> No hacer nada</li>
+            <li><kbd>1</kbd> Arriba</li>
+            <li><kbd>2</kbd> Derecha</li>
+            <li><kbd>3</kbd> Izquierda</li>
+            <li><kbd>4</kbd> Abajo</li>
+          </ol>
+          <p class="fine">Cada acción dura cuatro cuadros, y la acción anterior se repite con probabilidad 0,25.</p>
+
+          <h3>Recompensas y vidas</h3>
+          <ul class="reward-list">
+            <li><span class="reward-value">+1</span> por cada fila nueva dentro de una vida.</li>
+            <li><span class="reward-value">+55</span> al llegar a casa desde la fila 11. Traza verificada en el paso 231: la fila pasa de 11 a 0 y las vidas siguen en 3.</li>
+            <li>Cuatro vidas al inicio. El episodio termina cuando se acaban.</li>
+          </ul>
+        </div>
+
+        <div class="lanes-wrap">
+          <h3>Mapa de filas</h3>
+          <ol class="lanes" aria-label="Mapa de filas del juego, de arriba hacia abajo">
+            <li class="lane lane-home"><span class="lane-num">12</span> Casa</li>
+            <li class="lane lane-river"><span class="lane-num">11–7</span> Río: troncos</li>
+            <li class="lane lane-median"><span class="lane-num">6</span> Mediana segura</li>
+            <li class="lane lane-road"><span class="lane-num">5–1</span> Carretera</li>
+            <li class="lane lane-start"><span class="lane-num">0</span> Inicio seguro</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <section id="aprende" class="learn" aria-labelledby="t-aprende">
+      <h2 id="t-aprende">Cómo aprende</h2>
+      <p class="lede">El DQN repite un ciclo: el sapo actúa, guarda lo que pasó y ajusta la red con ejemplos tomados al azar. Recorre los pasos para ver el ciclo completo.</p>
+
+      <div class="loop-wrap">
+        <div class="scroll-x">
+        <svg class="loop" viewBox="0 0 600 370" role="img" aria-labelledby="loop-title loop-desc">
+          <title id="loop-title">Ciclo de entrenamiento del DQN</title>
+          <desc id="loop-desc">Entorno, ε-greedy, buffer de repetición, minibatch, objetivo de Bellman, pérdida de Huber y actualización de la red. Al final el ciclo vuelve al entorno.</desc>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" class="arrowhead"></path>
+            </marker>
+          </defs>
+          <!-- arrows -->
+          <path class="flow" d="M200 88 L236 88" marker-end="url(#arrow)"></path>
+          <path class="flow" d="M396 88 L432 88" marker-end="url(#arrow)"></path>
+          <path class="flow" d="M508 120 L508 176" marker-end="url(#arrow)"></path>
+          <path class="flow" d="M432 208 L396 208" marker-end="url(#arrow)"></path>
+          <path class="flow" d="M236 208 L200 208" marker-end="url(#arrow)"></path>
+          <path class="flow" d="M120 240 L120 296" marker-end="url(#arrow)"></path>
+          <path class="flow loop-back" d="M40 328 L16 328 L16 88 L38 88" marker-end="url(#arrow)"></path>
+          <!-- nodes: step 1 to 7 -->
+          <g class="step" data-step="0" transform="translate(40 56)">
+            <rect width="160" height="64"></rect><text class="n-title" x="12" y="26">1 · Entorno</text><text class="n-cap" x="12" y="46">acción, recompensa, fin</text>
+          </g>
+          <g class="step" data-step="1" transform="translate(236 56)">
+            <rect width="160" height="64"></rect><text class="n-title" x="12" y="26">2 · ε-greedy</text><text class="n-cap" x="12" y="46">azar o mayor Q</text>
+          </g>
+          <g class="step" data-step="2" transform="translate(432 56)">
+            <rect width="152" height="64"></rect><text class="n-title" x="12" y="26">3 · Buffer</text><text class="n-cap" x="12" y="46">guarda la transición</text>
+          </g>
+          <g class="step" data-step="3" transform="translate(432 176)">
+            <rect width="152" height="64"></rect><text class="n-title" x="12" y="26">4 · Minibatch</text><text class="n-cap" x="12" y="46">muestra al azar</text>
+          </g>
+          <g class="step" data-step="4" transform="translate(236 176)">
+            <rect width="160" height="64"></rect><text class="n-title" x="12" y="26">5 · Bellman</text><text class="n-cap" x="12" y="46">y con la red objetivo</text>
+          </g>
+          <g class="step" data-step="5" transform="translate(40 176)">
+            <rect width="160" height="64"></rect><text class="n-title" x="12" y="26">6 · Huber</text><text class="n-cap" x="12" y="46">error entre Q(s, a) e y</text>
+          </g>
+          <g class="step" data-step="6" transform="translate(40 296)">
+            <rect width="160" height="64"></rect><text class="n-title" x="12" y="26">7 · Actualizar</text><text class="n-cap" x="12" y="46">un paso de gradiente</text>
+          </g>
+        </svg>
+        </div>
+
+        <div class="loop-controls">
+          <button type="button" id="loop-prev">Anterior</button>
+          <button type="button" id="loop-play" aria-pressed="false">Reproducir</button>
+          <button type="button" id="loop-next">Siguiente</button>
+          <p id="loop-caption" class="loop-caption" aria-live="polite"></p>
+        </div>
+      </div>
+
+      <div class="formula">
+        <p class="formula-label">Objetivo de Bellman con red objetivo</p>
+        <math display="block" class="formula-math" aria-label="y igual a r más gamma por uno menos done, por el máximo sobre a prima de Q con theta barra, de s prima y a prima">
+          <mi>y</mi><mo>=</mo><mi>r</mi><mo>+</mo><mi>γ</mi><mo>(</mo><mn>1</mn><mo>−</mo><mi>done</mi><mo>)</mo>
+          <munder><mo>max</mo><msup><mi>a</mi><mo>′</mo></msup></munder>
+          <msub><mi>Q</mi><mover><mi>θ</mi><mo>¯</mo></mover></msub><mo>(</mo><msup><mi>s</mi><mo>′</mo></msup><mo>,</mo><msup><mi>a</mi><mo>′</mo></msup><mo>)</mo>
+        </math>
+        <p class="formula-note">La pérdida de Huber compara <math><mi>Q</mi><mo>(</mo><mi>s</mi><mo>,</mo><mi>a</mi><mo>)</mo><mo>−</mo><mi>y</mi></math> con δ = 1. La red objetivo no recibe gradiente y se copia cada cierto número de pasos.</p>
+      </div>
+    </section>
+
+    <section id="carrera" class="race" aria-labelledby="t-carrera">
+      <h2 id="t-carrera">La carrera de medallas</h2>
+      <p class="lede">Elige una corrida y recorre sus puntos de control. Cada medalla se marca como obtenida cuando al menos la mitad de los episodios la alcanza.</p>
+
+      <div id="run-picker" class="run-picker" role="group" aria-label="Corrida"></div>
+
+      <div class="race-grid">
+        <figure class="race-view" id="race-view">
+          <img id="race-gif" alt="" loading="lazy" width="300" height="300">
+          <figcaption id="race-caption"></figcaption>
+        </figure>
+
+        <div class="race-stats">
+          <dl id="race-stats" class="stats"></dl>
+          <p id="race-run-note" class="run-note"></p>
+        </div>
+
+        <div class="ladder-wrap">
+          <h3>Escalera de medallas</h3>
+          <ol id="ladder" class="ladder"></ol>
+        </div>
+      </div>
+
+      <div class="timeline">
+        <div class="transport">
+          <button type="button" id="tl-prev" aria-label="Punto de control anterior">←</button>
+          <button type="button" id="tl-play" aria-pressed="false">Reproducir</button>
+          <button type="button" id="tl-next" aria-label="Punto de control siguiente">→</button>
+        </div>
+        <input type="range" id="tl-range" class="tl-range" min="0" max="0" step="1" value="0" aria-label="Punto de control" aria-describedby="tl-ticks">
+        <ol id="tl-ticks" class="ticks"></ol>
+      </div>
+
+      <p id="proxy-note" class="note"></p>
+    </section>
+
+    <section id="experimento" class="experiment" aria-labelledby="t-experimento">
+      <h2 id="t-experimento">El experimento</h2>
+      <p class="lede">Cinco corridas de píxeles y una corrida RAM de referencia. Cada corrida usa una sola semilla, salvo la 3 y la 3b, que son la misma configuración con semillas 42 y 43. Son resultados preliminares.</p>
+
+      <div class="chart-head">
+        <div class="metric-toggle" role="group" aria-label="Métrica del gráfico">
+          <button type="button" id="metric-home" aria-pressed="true">Casas (proxy)</button>
+          <button type="button" id="metric-row" aria-pressed="false">Fila máxima media</button>
+        </div>
+        <div id="legend" class="legend" role="group" aria-label="Corridas en el gráfico"></div>
+      </div>
+      <div class="scroll-x">
+        <svg id="chart" class="chart" role="img" aria-labelledby="chart-title chart-desc" viewBox="0 0 720 380">
+          <title id="chart-title">Medalla de casa o fila máxima por punto de control</title>
+          <desc id="chart-desc">Líneas por corrida con el porcentaje de episodios que llegan a casa, o la fila máxima media, frente a los pasos de entrenamiento.</desc>
+        </svg>
+      </div>
+
+      <h3 class="subhead">Tabla comparativa</h3>
+      <div class="scroll-x">
+        <table class="compare" id="compare">
+          <caption>Mejor puntaje y mejor proporción de casas por corrida, sobre los puntos de control (20 episodios cada uno).</caption>
+          <thead>
+            <tr>
+              <th scope="col">Corrida</th>
+              <th scope="col">Qué cambió</th>
+              <th scope="col" class="num">Mejor puntaje</th>
+              <th scope="col" class="num">Mejor % de casa (proxy)</th>
+              <th scope="col" class="num">Pasos/s</th>
+            </tr>
+          </thead>
+          <tbody id="compare-body"></tbody>
+        </table>
+      </div>
+
+      <h3 class="subhead">Lo que muestran las corridas</h3>
+      <ul class="readings">
+        <li><strong>Tamaño del buffer.</strong> Con 100 000 transiciones (corrida 2) el agente no llegó a casa a 5 M. Con 200 000 (corrida 4) llegó a casa en el 90 % de los episodios de evaluación.</li>
+        <li><strong>Semilla.</strong> La corrida 3 (semilla 42) llegó a casa en el 60 % de los episodios; la 3b (semilla 43), con la misma configuración, en el 0 %. El buffer de 200 000 habilita llegar a casa, pero no lo garantiza.</li>
+        <li><strong>Escala de recompensa.</strong> La corrida 3 (escala 0,1) quedó en 60 % y la 4 (signo) en 90 %. Esa diferencia está dentro del ruido de una semilla; no es un efecto confirmado.</li>
+        <li><strong>Pérdida de vida como fin.</strong> En la corrida 5 los episodios duran 696 pasos frente a 422 en la 4 (ventana de 4 a 5 M). Hubo 535 de 1 434 partidas con dos o más casas, frente a 0 de 2 363 en la 4, y la primera partida con tres casas (5 %).</li>
+        <li><strong>Pregunta abierta.</strong> El salto de la corrida 3 llegó justo después de reanudar desde 2,5 M con el buffer vacío. No hay una prueba de que el reinicio sea la causa.</li>
+      </ul>
+    </section>
+
+    <section id="lecciones" class="lessons" aria-labelledby="t-lecciones">
+      <h2 id="t-lecciones">Lecciones</h2>
+      <ol class="lesson-list" id="lesson-list"></ol>
+    </section>
+  </main>
+
+  <footer class="colophon">
+    <p>Repositorio: <a href="https://github.com/AlejoMoncada/frogger-dqn-lab">github.com/AlejoMoncada/frogger-dqn-lab</a></p>
+    <p>Los datos de esta página los genera <code>tools/build_story.py</code> a partir de <code>results/</code>. Vuelve a ejecutarlo tras cambiar una corrida.</p>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
