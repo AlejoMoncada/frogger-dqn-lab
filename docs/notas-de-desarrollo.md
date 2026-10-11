@@ -232,3 +232,22 @@ Lecciones:
   y se niega a empezar si no cabe (`--force-memory` lo omite a propósito).
 - Reanudar con `--resume` restaura redes, optimizador, contadores y estados de RNG. El búfer no
   se guarda: se vuelve a llenar, y el calentamiento (`learning_starts`) se aplica otra vez.
+
+### Recompensa de casa
+
+Traza verificada en `ALE/Frogger-v5` (paso 231 de la traza): la recompensa es 55 al llegar a casa
+desde la fila 11, las vidas pasan de 3 a 3, el byte de fila en RAM pasa de 11 a 0 y el puntaje
+BCD pasa de 20 a 75. Por cada fila nueva la recompensa es +1.
+
+Con `reward_clip=True` el entrenador reemplaza cada recompensa por su signo. Casa (+55) y una fila
+nueva (+1) llegan así al agente como +1, de modo que no puede aprender que casa vale 55 veces más.
+
+Observación de la corrida 2 (búfer de 100k, recorte por signo): 9 casas en total y 0 en los
+últimos 250k pasos. La corrida 1 tuvo 454 episodios con casa entre 4M y 4,6M pasos. Es motivación
+para probar otra escala, no una conclusión.
+
+Hipótesis sin verificar:
+
+- El recorte por signo subvalora llegar a casa, y eso frena el aprendizaje de la ruta completa.
+- Escalar la recompensa (`--reward-mode scale --reward-scale 0.1`: casa +5,5, fila +0,1) dará a
+  casa un peso mayor sin dejar que domine el gradiente. La prueba es la corrida H7.

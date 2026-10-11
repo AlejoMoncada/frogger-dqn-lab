@@ -31,6 +31,8 @@ does what it is best at.
 - [ ] H3 Decide budget from pilot; long run with checkpoints; leaderboard + GIFs (route: inline background)
 - [ ] H4 Verify home detection with a real trajectory if any frog reaches row 12 (route: delegated)
 - [ ] H5 Compare RAM+MLP vs pixels+CNN in one table; notes section (route: delegated writer)
+- [x] H6 Reward scaling option (home = +55 verified) (route: delegated writer, Haiku)
+- [ ] H7 Run 3: buffer 200k, reward_mode=scale 0.1 (home +5.5, row +0.1), 5M steps (route: inline background)
 
 ## Acceptance criteria
 - Pilot reports measured steps/s for both configurations.
@@ -90,6 +92,19 @@ does what it is best at.
 - Deviations: a bundle is 27 MB on disk (online, target and Adam state), not ~7 MB. The replay buffer is
   not checkpointed, so after a resume the learner waits `learning_starts` steps again. Partial
   episodes at the resume point are dropped and env seeds are offset by the resume step.
+
+- H6 reward scaling (`exp/home-challenge`):
+  - Verified trace (ALE Frogger, step 231): reward 55 on the hop from row 11 to home, lives 3 to 3,
+    RAM row byte 11 to 0, BCD score 20 to 75. Rows give +1.
+  - `afa8613` feat(pixels): `reward_mode` (`sign` default, `scale`, `raw`) and `reward_scale` (0.1)
+    replace `reward_clip`; `transform_reward` is applied before n-step accumulation; episode
+    returns stay raw; CLI `--reward-mode` and `--reward-scale` written to config.json. Legacy
+    `reward_clip` maps True to `sign` and False to `raw` (`upgrade_saved_config`), so resuming
+    `results/run_px_5m_safe` keeps `sign` with no spurious change warning.
+  - Tests: `tests/test_pixels_reward.py`, 8 new. RED observed first (collection ImportError for
+    the missing symbols), then GREEN. `uv run pytest -q`: 96 passed (88 before + 8).
+  - Smoke CPU (`runs/reward_smoke`, `--reward-mode scale --reward-scale 0.1`): config.json has
+    `"reward_mode": "scale"`, `"reward_scale": 0.1`; 2 000 steps, 37.8 steps/s.
 
 ## Next step
 H3: choose the long-run budget (user decision). Long runs now use `--save-interval`; resume a
