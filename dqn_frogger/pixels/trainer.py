@@ -32,7 +32,7 @@ import json
 import platform
 import random
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from importlib.metadata import version
 from pathlib import Path
 from typing import Any, TextIO
@@ -340,6 +340,12 @@ def train(
 
     agent = PixelDQNAgent(n_actions=n_actions, lr=config.lr, gamma=config.gamma, device=config.device)
     resumed = _restore_checkpoint(latest_path, agent, rng) if resume else None
+    if resumed:  # a saved life_loss_terminal stays on unless the flag is passed again
+        config = replace(
+            config,
+            life_loss_terminal=config.life_loss_terminal
+            or bool(resumed.config.get("life_loss_terminal", False)),
+        )
     start_step = resumed.env_step if resumed else 0
     learning_from = start_step + config.learning_starts
     _write_run_config(out / CONFIG_JSON, config, resumed_from_step=start_step if resumed else None)
@@ -384,8 +390,9 @@ def train(
 
     # Offset the env seeds on resume so the restarted episodes differ from the first run's.
     env_seed = config.seed + start_step
-    obs, _ = env.reset(seed=np.arange(env_seed, env_seed + num_envs))
+    obs, reset_info = env.reset(seed=np.arange(env_seed, env_seed + num_envs))
     refs = [streams[i].start(obs[i]) for i in range(num_envs)]  # references to the current obs
+    lives_prev = np.asarray(reset_info["lives"], dtype=np.int64).copy()  # lives before each step
     episode = resumed.episode if resumed else 0
     env_steps = start_step
     last_eval_step = -1
@@ -412,14 +419,28 @@ def train(
             for i in range(num_envs):
                 if skip_next[i]:
                     skip_next[i] = False  # NextStep reset step: not a transition, but it starts the episode
+                    lives_prev[i] = lives[i]  # the new game's lives, not the game-over value 0
                     refs[i] = streams[i].start(next_obs[i])
                     continue
                 reward = float(rewards[i])
                 trackers[i].observe(int(episode_length[i]), reward, int(lives[i]))
                 shaped = transform_reward(reward, config.reward_mode, config.reward_scale)
                 next_ref = streams[i].step(next_obs[i])
+                # Bootstrap-only terminal: a lost life ends the TD target, the game goes on.
+                life_lost = (
+                    config.life_loss_terminal
+                    and not terminated[i]
+                    and not truncated[i]
+                    and lives[i] < lives_prev[i]
+                )
+                lives_prev[i] = lives[i]
                 accumulators[i].push(
-                    refs[i], actions[i], shaped, next_ref, bool(terminated[i]), bool(truncated[i])
+                    refs[i],
+                    actions[i],
+                    shaped,
+                    next_ref,
+                    bool(terminated[i]) or bool(life_lost),
+                    bool(truncated[i]),
                 )
                 refs[i] = next_ref
                 episode_return[i] += reward

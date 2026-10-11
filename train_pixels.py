@@ -103,6 +103,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--lr", type=float, default=None, help="Adam learning rate (default 1e-4).")
     parser.add_argument(
+        "--life-loss-terminal",
+        action="store_true",
+        help="Treat a lost life as terminal for the TD target only (episodes and eval unchanged). "
+        "On --resume a saved true stays on.",
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="Continue from <output-dir>/checkpoints/latest.pt (replay is refilled, not restored).",
@@ -157,6 +163,8 @@ def main() -> None:
         overrides["eps_decay_steps"] = args.eps_decay_steps
     if args.lr is not None:
         overrides["lr"] = args.lr
+    if args.life_loss_terminal:
+        overrides["life_loss_terminal"] = True
     config = replace(config, **overrides)
 
     try:

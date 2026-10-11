@@ -59,6 +59,9 @@ class PixelDQNConfig:
     eval_epsilon: float = 0.01
     checkpoint_steps: tuple[int, ...] = DEFAULT_CHECKPOINT_STEPS
     save_interval: int = 250_000  # periodic resumable checkpoint + checkpoints/latest.pt
+    # Life loss ends the TD bootstrap (done=1, n-step window flushed) but not the game: logging,
+    # evaluation and milestones still see full 5-life games. Missing in old configs means False.
+    life_loss_terminal: bool = False
     device: str = ""  # "" or "auto": cuda, else mps, else cpu (see __post_init__)
 
     def __post_init__(self) -> None:
