@@ -71,6 +71,34 @@ def parse_args() -> argparse.Namespace:
         help="Multiplier for --reward-mode scale (default 0.1). Episode returns stay raw.",
     )
     parser.add_argument(
+        "--batch-size", type=int, default=None, help="Learner batch size (default 128)."
+    )
+    parser.add_argument(
+        "--num-threads",
+        type=int,
+        default=None,
+        help="CPU threads for the vector env step (default 8).",
+    )
+    parser.add_argument(
+        "--target-update-interval",
+        type=int,
+        default=None,
+        help="Env steps between target-network syncs (default 8000).",
+    )
+    parser.add_argument(
+        "--learning-starts",
+        type=int,
+        default=None,
+        help="Env steps of warmup before learner updates (default 20000).",
+    )
+    parser.add_argument(
+        "--eps-decay-steps",
+        type=int,
+        default=None,
+        help="Env steps over which epsilon decays to its end value (default 1000000).",
+    )
+    parser.add_argument("--lr", type=float, default=None, help="Adam learning rate (default 1e-4).")
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="Continue from <output-dir>/checkpoints/latest.pt (replay is refilled, not restored).",
@@ -114,6 +142,18 @@ def main() -> None:
         overrides["reward_scale"] = args.reward_scale
     if args.replay_impl is not None:
         overrides["replay_impl"] = args.replay_impl
+    if args.batch_size is not None:
+        overrides["batch_size"] = args.batch_size
+    if args.num_threads is not None:
+        overrides["num_threads"] = args.num_threads
+    if args.target_update_interval is not None:
+        overrides["target_update_interval"] = args.target_update_interval
+    if args.learning_starts is not None:
+        overrides["learning_starts"] = args.learning_starts
+    if args.eps_decay_steps is not None:
+        overrides["eps_decay_steps"] = args.eps_decay_steps
+    if args.lr is not None:
+        overrides["lr"] = args.lr
     config = replace(config, **overrides)
 
     try:
