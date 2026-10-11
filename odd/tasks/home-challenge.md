@@ -37,15 +37,16 @@ does what it is best at.
 - [x] H10 Colab overkill notebook: `colab/frogger_overkill.ipynb` + `colab/README.md`, CLI flags for batch, threads, target interval, warmup, epsilon decay and lr (route: delegated writer)
 - [x] H11 Apple MPS support + Mac guide: `--device {cpu,cuda,mps,auto}`, device-aware sync and pinning, platform-conditional torch source, `docs/mac.md`. Real MPS execution is unverified until the user's 100k pilot (route: delegated writer, Haiku)
 
-- [ ] H8 Run 4: buffer 200k, reward_mode=sign, 5M steps (isolates buffer vs reward with run 3) — chained after run 3
+- [x] H8 Run 4: buffer 200k, reward_mode=sign, 5M steps (isolates buffer vs reward with run 3) — chained after run 3
 
 ### Ablation grid (pixels + CNN + Double DQN + n-step 3, 5M steps, 1 seed each)
 | Run | Buffer | Reward | Status |
 |---|---|---|---|
 | 1 | 200k | sign | killed by OOM at 4.6M; home in 28% of train episodes at 4-4.6M |
 | 2 | 100k | sign | done: max row 10, 0 homes in eval, final 38.1 |
-| 3 | 200k | scale 0.1 | running (started 22:03) |
-| 4 | 200k | sign | queued after run 3 |
+| 3 | 200k | scale 0.1 | done (resumed at 2.5M with frame replay): 5M eval 78.2, frog_home 60% |
+| 4 | 200k | sign | done: 3M frog_home 85%, 5M eval 101.2, frog_home 90%; 550.9 steps/s |
+| 3b | 200k | scale 0.1, seed 43 | running on MacBook Pro M4 (MPS, ~435 steps/s) |
 
 ## Acceptance criteria
 - Pilot reports measured steps/s for both configurations.
@@ -179,3 +180,9 @@ does what it is best at.
 ## Next step
 H3: choose the long-run budget (user decision). Long runs now use `--save-interval`; resume a
 killed run with `--resume` on the same `--output-dir`.
+
+### Ablation reading (2026-10-11, 1 seed each, preliminary)
+- Buffer size is the main factor: 100k + sign (run 2) never reached home; 200k + sign (run 4) reached home in 90% of greedy eval episodes at 5M.
+- Reward scaling did not help on top of the 200k buffer: run 3 (scale) 60% vs run 4 (sign) 90% at 5M; within single-seed noise, not a confirmed effect.
+- No run reached three homes; the max is 1 home per eval episode.
+- Pending: seed-43 replica of run 3 on the Mac to estimate run-to-run variance.
