@@ -13,7 +13,19 @@ from typing import Any
 import psutil
 import torch
 
+from dqn_frogger.pixels.frame_replay import FrameReplay
+from dqn_frogger.pixels.replay import PixelReplayBuffer
+
 SAFETY_MARGIN_BYTES = 3_000_000_000  # torch/CUDA/pinned memory and the OS, measured as 2-3 GB
+
+
+def replay_estimated_bytes(replay_impl: str, capacity: int, num_envs: int, n_step: int) -> int:
+    """Host memory of the replay buffer the run will allocate (the selected implementation)."""
+    if replay_impl == "frame":
+        return FrameReplay.estimated_bytes(capacity, num_envs, n_step)
+    if replay_impl == "stacked":
+        return PixelReplayBuffer.estimated_bytes(capacity)
+    raise ValueError(f"replay_impl must be 'frame' or 'stacked', got {replay_impl!r}")
 
 
 class MemoryBudgetError(ValueError):

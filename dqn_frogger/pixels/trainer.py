@@ -7,6 +7,10 @@ learner updates (device). Steps are counted as env steps summed over envs.
 NextStep autoreset: the step after a done is a reset step (reward 0, action ignored). It is
 counted in the step budget but never stored and never shown to the milestone tracker.
 
+Replay layout (`replay_impl`): "frame" (default) stores each 84x84 frame once per env step and
+transitions keep frame indices (`frame_replay.py`, about 7.1 KB per transition); "stacked" keeps
+obs and next_obs as full (4, 84, 84) stacks (`replay.py`, about 56.5 KB per transition).
+
 Safety (added after a 5M run was killed at 4.6M steps by an out-of-memory condition):
 - Memory guard: before anything is written, the replay estimate plus a 3 GB margin must fit in
   the RAM that is free now; otherwise the run is refused unless `force_memory` is set.
@@ -41,10 +45,12 @@ from dqn_frogger.env import ENV_ID
 from dqn_frogger.milestones import MilestoneTracker, format_medals
 from dqn_frogger.pixels.agent import PixelDQNAgent
 from dqn_frogger.pixels.config import PixelDQNConfig, transform_reward, upgrade_saved_config
+from dqn_frogger.pixels.frame_replay import FrameReplay
 from dqn_frogger.pixels.replay import NStepAccumulator, PixelReplayBuffer
 from dqn_frogger.pixels.safety import (
     available_memory_bytes,
     enforce_memory_budget,
+    replay_estimated_bytes,
     save_atomic,
 )
 from dqn_frogger.pixels.vector_env import make_vector_env
@@ -77,6 +83,7 @@ RESUME_FREE_FIELDS = frozenset(
         "save_interval",
         "checkpoint_steps",
         "buffer_size",
+        "replay_impl",
         "device",
         "num_threads",
         "eval_interval",
@@ -299,7 +306,7 @@ def train(
     latest_path = checkpoint_dir / LATEST_NAME
 
     decision = enforce_memory_budget(
-        PixelReplayBuffer.estimated_bytes(config.buffer_size),
+        replay_estimated_bytes(config.replay_impl, config.buffer_size, config.num_envs, config.n_step),
         available_memory_bytes(),
         force=force_memory,
     )
@@ -335,11 +342,16 @@ def train(
     learning_from = start_step + config.learning_starts
     _write_run_config(out / CONFIG_JSON, config, resumed_from_step=start_step if resumed else None)
 
-    buffer = PixelReplayBuffer(config.buffer_size)
-    estimate_gb = PixelReplayBuffer.estimated_bytes(config.buffer_size) / 1e9
+    if config.replay_impl == "frame":
+        buffer = FrameReplay(config.buffer_size, num_envs, config.n_step)
+    else:
+        buffer = PixelReplayBuffer(config.buffer_size)
+    estimate_gb = (
+        replay_estimated_bytes(config.replay_impl, config.buffer_size, num_envs, config.n_step) / 1e9
+    )
     print(
-        f"replay capacity={config.buffer_size:,} transitions, ~{estimate_gb:.1f} GB host RAM; "
-        f"device={config.device}, num_envs={num_envs}",
+        f"replay capacity={config.buffer_size:,} transitions ({config.replay_impl}), "
+        f"~{estimate_gb:.2f} GB host RAM; device={config.device}, num_envs={num_envs}",
         flush=True,
     )
     if resumed:
@@ -352,6 +364,7 @@ def train(
             flush=True,
         )
     accumulators = [NStepAccumulator(config.n_step, config.gamma, buffer) for _ in range(num_envs)]
+    streams = [buffer.stream(i) for i in range(num_envs)]
     trackers = [MilestoneTracker() for _ in range(num_envs)]
     episode_return = np.zeros(num_envs, dtype=np.float64)
     episode_length = np.zeros(num_envs, dtype=np.int64)
@@ -370,6 +383,7 @@ def train(
     # Offset the env seeds on resume so the restarted episodes differ from the first run's.
     env_seed = config.seed + start_step
     obs, _ = env.reset(seed=np.arange(env_seed, env_seed + num_envs))
+    refs = [streams[i].start(obs[i]) for i in range(num_envs)]  # references to the current obs
     episode = resumed.episode if resumed else 0
     env_steps = start_step
     last_eval_step = -1
@@ -395,14 +409,17 @@ def train(
 
             for i in range(num_envs):
                 if skip_next[i]:
-                    skip_next[i] = False  # NextStep reset step: not a transition
+                    skip_next[i] = False  # NextStep reset step: not a transition, but it starts the episode
+                    refs[i] = streams[i].start(next_obs[i])
                     continue
                 reward = float(rewards[i])
                 trackers[i].observe(int(episode_length[i]), reward, int(lives[i]))
                 shaped = transform_reward(reward, config.reward_mode, config.reward_scale)
+                next_ref = streams[i].step(next_obs[i])
                 accumulators[i].push(
-                    snapshot[i], actions[i], shaped, next_obs[i], bool(terminated[i]), bool(truncated[i])
+                    refs[i], actions[i], shaped, next_ref, bool(terminated[i]), bool(truncated[i])
                 )
+                refs[i] = next_ref
                 episode_return[i] += reward
                 episode_length[i] += 1
                 if terminated[i] or truncated[i]:

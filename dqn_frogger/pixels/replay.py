@@ -11,7 +11,7 @@ with done=0, so the learner still bootstraps from the final observation.
 """
 
 from collections import deque
-from typing import NamedTuple, Protocol
+from typing import Any, NamedTuple, Protocol
 
 import numpy as np
 import torch
@@ -70,6 +70,10 @@ class PixelReplayBuffer:
         self._next_index = (i + 1) % self.capacity
         self._size = min(self._size + 1, self.capacity)
 
+    def stream(self, env_id: int) -> "StackedStream":
+        """Per-env handle used by the trainer; its references are the stacks themselves."""
+        return StackedStream()
+
     def sample(self, batch_size: int, rng: np.random.Generator, pin_memory: bool = False) -> PixelBatch:
         """Uniform batch with replacement. Pinned host tensors make the GPU copy asynchronous."""
         if self._size == 0:
@@ -91,11 +95,29 @@ class PixelReplayBuffer:
         return self._size
 
 
+class StackedStream:
+    """Reference handle for PixelReplayBuffer: a reference is a private copy of the stack."""
+
+    def start(self, stack) -> np.ndarray:
+        """Begin an episode with its reset observation."""
+        return np.array(stack, copy=True)
+
+    def step(self, stack) -> np.ndarray:
+        """Reference for the observation after one real step."""
+        return np.array(stack, copy=True)
+
+
+def _own(payload):
+    """Copy array payloads so the window never aliases the caller's buffers. Refs pass through."""
+    return np.array(payload, copy=True) if isinstance(payload, np.ndarray) else payload
+
+
 class NStepAccumulator:
     """Turns one environment's step stream into n-step transitions for a sink.
 
     Call `push` once per real environment step. After a terminal or truncation the window is
-    flushed, so the next `push` belongs to a new episode.
+    flushed, so the next `push` belongs to a new episode. Observations are whatever the sink
+    accepts: stacks for PixelReplayBuffer, frame references for FrameReplay.
     """
 
     def __init__(self, n: int, gamma: float, sink: Sink) -> None:
@@ -104,10 +126,10 @@ class NStepAccumulator:
         self.n = n
         self.gamma = gamma
         self.sink = sink
-        self._pending: deque[tuple[np.ndarray, int, float]] = deque()
+        self._pending: deque[tuple[Any, int, float]] = deque()
 
     def push(self, obs, action: int, reward: float, next_obs, terminated: bool, truncated: bool) -> None:
-        self._pending.append((np.array(obs, copy=True), int(action), float(reward)))
+        self._pending.append((_own(obs), int(action), float(reward)))
         if terminated or truncated:
             while self._pending:
                 self._emit(next_obs, done=terminated)

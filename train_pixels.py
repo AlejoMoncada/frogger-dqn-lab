@@ -9,7 +9,7 @@ from pathlib import Path
 
 import torch
 
-from dqn_frogger.pixels.config import REWARD_MODES, PixelDQNConfig, default_device
+from dqn_frogger.pixels.config import REPLAY_IMPLS, REWARD_MODES, PixelDQNConfig, default_device
 from dqn_frogger.pixels.trainer import train
 
 
@@ -44,6 +44,13 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Replay capacity in transitions (default 100000, about 5.6 GB of host RAM).",
+    )
+    parser.add_argument(
+        "--replay-impl",
+        choices=list(REPLAY_IMPLS),
+        default=None,
+        help="Replay layout: frame (default, one stored frame per step) or stacked (legacy, "
+        "about 8x more RAM per transition).",
     )
     parser.add_argument(
         "--save-interval",
@@ -105,6 +112,8 @@ def main() -> None:
         overrides["reward_mode"] = args.reward_mode
     if args.reward_scale is not None:
         overrides["reward_scale"] = args.reward_scale
+    if args.replay_impl is not None:
+        overrides["replay_impl"] = args.replay_impl
     config = replace(config, **overrides)
 
     try:

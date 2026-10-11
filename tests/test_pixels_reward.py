@@ -90,6 +90,7 @@ def test_nstep_return_uses_transformed_rewards_not_raw(tmp_path, monkeypatch) ->
         reward_mode="scale",
         reward_scale=0.1,
         n_step=3,
+        replay_impl="stacked",  # this test inspects the stacked buffer's reward column
     )
 
     pixel_trainer.train(config, out)

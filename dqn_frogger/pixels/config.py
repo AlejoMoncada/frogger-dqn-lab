@@ -13,6 +13,7 @@ def default_device() -> str:
 
 
 REWARD_MODES = ("sign", "scale", "raw")
+REPLAY_IMPLS = ("frame", "stacked")  # frame: shared frame store (default); stacked: legacy layout
 
 
 def transform_reward(reward: float, mode: str, scale: float) -> float:
@@ -43,7 +44,8 @@ class PixelDQNConfig:
     total_steps: int = 2_000_000
     num_envs: int = 8
     num_threads: int = 8
-    buffer_size: int = 100_000  # ~5.6 GB of host RAM (obs + next_obs as uint8)
+    buffer_size: int = 100_000  # transitions; ~0.7 GB with replay_impl "frame", ~5.6 GB "stacked"
+    replay_impl: str = "frame"  # "frame" (one stored frame per step) or "stacked" (legacy layout)
     batch_size: int = 128
     gamma: float = 0.99
     n_step: int = 3
@@ -77,6 +79,8 @@ class PixelDQNConfig:
             raise ValueError("save_interval must be positive")
         if self.reward_mode not in REWARD_MODES:
             raise ValueError(f"reward_mode must be one of {REWARD_MODES}, got {self.reward_mode!r}")
+        if self.replay_impl not in REPLAY_IMPLS:
+            raise ValueError(f"replay_impl must be one of {REPLAY_IMPLS}, got {self.replay_impl!r}")
 
     def active_checkpoint_steps(self) -> tuple[int, ...]:
         """Checkpoint steps not beyond `total_steps`, always including the final step."""
