@@ -35,6 +35,16 @@ does what it is best at.
 - [ ] H7 Run 3: buffer 200k, reward_mode=scale 0.1 (home +5.5, row +0.1), 5M steps (route: inline background)
 - [x] H9 Frame-sharing replay, 8x less memory: one stored frame per env step, about 7.1 KB instead of 56.5 KB per transition (route: delegated writer)
 
+- [ ] H8 Run 4: buffer 200k, reward_mode=sign, 5M steps (isolates buffer vs reward with run 3) — chained after run 3
+
+### Ablation grid (pixels + CNN + Double DQN + n-step 3, 5M steps, 1 seed each)
+| Run | Buffer | Reward | Status |
+|---|---|---|---|
+| 1 | 200k | sign | killed by OOM at 4.6M; home in 28% of train episodes at 4-4.6M |
+| 2 | 100k | sign | done: max row 10, 0 homes in eval, final 38.1 |
+| 3 | 200k | scale 0.1 | running (started 22:03) |
+| 4 | 200k | sign | queued after run 3 |
+
 ## Acceptance criteria
 - Pilot reports measured steps/s for both configurations.
 - Any home claim is backed by a frame/GIF and the reward/lives trace.
