@@ -886,8 +886,17 @@ kbd {
 /* Wide screens: two-column layouts */
 @media (min-width: 800px) {
   .hero {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-    align-items: center;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .hero-pair {
+    gap: 28px;
+  }
+
+  .hero-pair figure {
+    flex: 0 1 360px;
+    max-width: 360px;
   }
 
   .problem-grid {
@@ -938,12 +947,6 @@ kbd {
 
   .stats div:last-child {
     border-right: 0;
-  }
-}
-
-@media (min-width: 760px) {
-  .hero-pair {
-    flex-wrap: nowrap;
   }
 }
 

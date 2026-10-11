@@ -138,7 +138,7 @@
       el("p", { class: "hero-note", text:
         `Los GIF muestran el primer episodio de evaluación; las cifras son la media de ${episodes} episodios. ` +
         `El checkpoint se eligió por ${hero.reason}. ` +
-        (bestRun ? `Corrida ${bestRun.label} (${pixelsOrRam(bestRun)}).` : "") }),
+        (bestRun ? `${bestRun.label} (${pixelsOrRam(bestRun)}).` : "") }),
     );
   }
 
