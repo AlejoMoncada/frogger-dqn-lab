@@ -36,6 +36,8 @@ entregó por separado.
   red debe descubrir qué posiciones codifican al sapo y a los autos. Véase
   [`docs/notas-de-desarrollo.md`](docs/notas-de-desarrollo.md), sección 2.
 
+**¿Por qué no apilamos frames?** Con píxeles, una sola imagen no muestra velocidad ni dirección, por eso el DQN clásico apila cuatro cuadros. La RAM codifica el estado interno del juego (posiciones de sapo, autos y troncos), y en Frogger cada carril tiene velocidad y dirección fijas, así que en principio un solo vector basta para decidir. Esto es una razón de diseño, no una prueba: en la rama experimental, apilar 4 frames de píxeles con una CNN no rompió por sí solo el techo de la fila 10 (corrida con buffer 100k).
+
 ### Acciones
 
 Espacio de acciones `Discrete(5)`:
@@ -55,19 +57,27 @@ Configuración por defecto de la versión `v5` de ALE: `frameskip = 4` y `repeat
 ### Recompensas y terminación
 
 - **Recompensa:** +1 por cada salto hacia adelante que alcanza una fila nueva dentro de la vida actual.
-  No observamos otros valores de recompensa. La fila se confirmó en RAM: el byte 90 cuenta las filas de la
+  En las trayectorias de este agente no observamos otros valores; el bono de llegar a casa se describe en [Particularidades del ambiente](#particularidades-del-ambiente). La fila se confirmó en RAM: el byte 90 cuenta las filas de la
   vida actual y coincide con el conteo de recompensas en todos los pasos de cinco episodios
   (`docs/notas-de-desarrollo.md`, sección 4).
 - **Recorte de recompensa:** el entrenamiento usa el signo de la recompensa (`reward_clip = True`). Como
-  todas las recompensas son 0 o 1, el recorte no cambia ningún valor. Los registros (`episodes.csv`) guardan
+  las recompensas observadas en este agente son 0 o 1, el recorte no cambia ningún valor. Los registros (`episodes.csv`) guardan
   el puntaje sin recortar.
-- **Vidas:** 4 al inicio (`info["lives"]`).
+- **Vidas:** 5 sapos por partida (4 de reserva en `info["lives"]`). Detalle en [Particularidades del ambiente](#particularidades-del-ambiente).
 - **Terminación (`terminated`):** el episodio termina cuando el juego llega a *game over*, es decir, cuando
   las vidas llegan a 0. Verificado: en episodios aleatorios, `terminated = True` coincide con `lives = 0`.
 - **Truncamiento (`truncated`):** el entorno corta el episodio al llegar al límite de 108 000 cuadros.
 - **Tratamiento en Bellman:** solo `terminated` anula el valor del estado siguiente. Si un episodio se
   trunca, la red sigue estimando el valor futuro. El buffer guarda `done = terminated`
   (`dqn_frogger/trainer.py`).
+
+### Particularidades del ambiente
+
+- **Sticky actions:** con probabilidad 0.25 se repite la acción anterior. En el río, un salto de más es caer al agua.
+- **Cinco sapos por partida:** `info["lives"]` empieza en 4 porque cuenta las vidas de reserva. Perder un sapo no termina el episodio (verificado: 5 sapos por partida en la evaluación del agente de 2M).
+- **Recompensa:** +1 por fila nueva en la vida actual. El contador de filas se reinicia con cada sapo (byte 90 de la RAM), así que las mismas filas vuelven a pagar. No hay castigo por morir. Llegar a casa da +51 a +55 (bono que incluye el tiempo restante; verificado con una traza paso a paso en la rama experimental). Con el recorte por signo valdría +1.
+- **Carretera y río piden reglas opuestas:** en la carretera hay que esquivar objetos; en el río, pararse sobre ellos.
+- **Truncamiento no es fin del juego:** por eso el buffer guarda `done = terminated`.
 
 ## Flujo de entrenamiento
 
@@ -119,24 +129,24 @@ flowchart TD
 Valores tomados de `dqn_frogger/config.py` y `dqn_frogger/agent.py`. La corrida de 2M se lanzó con
 `--total-steps 2000000`; el resto de valores es el de `config.py` (véase la nota de reproducción sobre `config.json`).
 
-| Parámetro | Valor |
-|---|---|
-| Pasos totales | 2 000 000 (por defecto en `config.py`: 300 000) |
-| Capacidad del buffer | 100 000 |
-| Tamaño de lote | 64 |
-| Factor de descuento γ | 0.99 |
-| Tasa de aprendizaje (Adam) | 1e-4 |
-| Inicio del aprendizaje (`learning_starts`) | 10 000 pasos |
-| Frecuencia de entrenamiento (`train_freq`) | cada 4 pasos |
-| Sincronización de la red objetivo | cada 2 000 pasos |
-| ε inicial / final | 1.0 / 0.05 |
-| Pasos de decaimiento de ε | 150 000 (lineal) |
-| Recorte de recompensa | signo (`reward_clip = True`) |
-| Clip de la norma del gradiente | 10.0 |
-| Pérdida | Huber (`smooth_l1_loss`, δ = 1) |
-| Semilla de entrenamiento | 42 |
-| Evaluación durante el entrenamiento | cada 25 000 pasos, 10 episodios, ε = 0.01 |
-| Checkpoints | 100 000, 250 000, 500 000, 1 000 000, 2 000 000 (y el paso final) |
+| Parámetro | Valor | Razón |
+|---|---|---|
+| Pasos totales | 2 000 000 (por defecto en `config.py`: 300 000) | Presupuesto de la corrida principal; 300 000 es la línea base. |
+| Capacidad del buffer | 100 000 | Diversidad suficiente con poca memoria (vectores de 128 bytes). En la rama experimental (píxeles) el tamaño fue decisivo: con 100k el agente nunca llegó a casa y con 200k llegó en el 90 % de los episodios de evaluación. |
+| Tamaño de lote | 64 | Gradiente menos ruidoso que con 32 y barato en CPU. |
+| Factor de descuento γ | 0.99 | Horizonte efectivo de ~100 pasos. Un sapo dura ~30–45 pasos del agente (el primero ~126, porque incluye ~110 pasos de espera al inicio de la partida), así que cubre una vida completa. |
+| Tasa de aprendizaje (Adam) | 1e-4 | Baja, porque el objetivo se mueve; pasos grandes desestabilizan. |
+| Inicio del aprendizaje (`learning_starts`) | 10 000 pasos | Evita entrenar sobre un buffer casi vacío y correlacionado. |
+| Frecuencia de entrenamiento (`train_freq`) | cada 4 pasos | Una actualización cada 4 pasos (valor del DQN original). |
+| Sincronización de la red objetivo | cada 2 000 pasos | Equivale a 500 actualizaciones con el objetivo fijo. |
+| ε inicial / final | 1.0 / 0.05 | Exploración total al inicio y residual después. |
+| Pasos de decaimiento de ε | 150 000 (lineal) | Calibrado para la corrida de 300k. En la de 2M, el decaimiento cubrió el 7.5 % y el 92.5 % restante se entrenó con ε = 0.05 (punto para la discusión). |
+| Recorte de recompensa | signo (`reward_clip = True`) | Estándar en Atari. No tuvo efecto práctico porque el agente RAM nunca llegó a casa (todas sus recompensas fueron +1); si llegara, convertiría +51/+55 en +1. |
+| Clip de la norma del gradiente | 10.0 | Limita actualizaciones bruscas. |
+| Pérdida | Huber (`smooth_l1_loss`, δ = 1) | Robusta a errores grandes. |
+| Semilla de entrenamiento | 42 | Una sola semilla por corrida; no mide la variación entre semillas. |
+| Evaluación durante el entrenamiento | cada 25 000 pasos, 10 episodios, ε = 0.01 | ε = 0.01 evita bucles deterministas. |
+| Checkpoints | 100 000, 250 000, 500 000, 1 000 000, 2 000 000 (y el paso final) | Permiten evaluar el progreso por etapas en el leaderboard. |
 
 ## Arquitectura de la red
 
@@ -151,19 +161,41 @@ objetivo tiene la misma arquitectura y el mismo número de parámetros.
 
 ## Resultados
 
-## Alcance de la evaluación
+### Alcance de la evaluación
 
-Las evaluaciones periódicas y por checkpoints utilizan ε = 0.01 según el protocolo documentado, por lo que conservan un 1 % de selección aleatoria de acciones y no son estrictamente greedy. 
+Las evaluaciones periódicas y por checkpoints utilizan ε = 0.01 según el protocolo documentado, por lo que conservan un 1 % de selección aleatoria de acciones y no son estrictamente greedy.
 Los valores se presentan como media ± desviación estándar entre episodios. Los hitos expresan la proporción de episodios que los alcanza al menos una vez, no la tasa de éxito de cada intento.
 
 ### Hardware y tiempo
 
 - **CPU:** `AMD64 Family 23 Model 113`, PyTorch 2.14.1+cpu, Python 3.11.9.
 - **Tiempo:** 2 706.68 s (≈ 45 min) para 2 000 000 de pasos, a **738.9 pasos/s** (`results/run_2m/timing.json`).
-- **Por qué CPU y no GPU:** con observación RAM el cuello de botella es la CPU. El emulador ALE es
-  secuencial, y la red es pequeña: copiar cada lote a la GPU cuesta casi lo mismo que el cómputo
-  (`docs/notas-de-desarrollo.md`, sección 3). No medimos el tiempo en GPU.
+- Comparación medida con GPU: véase [CPU frente a GPU](#cpu-frente-a-gpu-medido).
 - La estimación inicial fue de 1 a 3 horas. La medición del entrenamiento de 300 000 pasos fue de 6 min 21 s.
+
+### CPU frente a GPU (medido)
+
+Medimos la misma configuración y la misma semilla en CPU y en una **GTX 1660 SUPER**, dentro de un
+mismo entorno con PyTorch 2.11.0+cu128 (`benchmarks/cpu_vs_gpu.py`, resultados en
+`results/benchmark_cpu_gpu.json`):
+
+| Medición | CPU | GPU (GTX 1660 SUPER) |
+|---|---|---|
+| Emulador solo, acciones aleatorias, sin red | 2 191.4 pasos/s | — |
+| Una actualización de la red (lote de 64) | **2.135 ms** | 3.371 ms |
+| Entrenamiento de 100 000 pasos | **133.0 s (751.8 pasos/s)** | 172.3 s (580.6 pasos/s) |
+| Evaluación greedy a 100 000 pasos (10 episodios) | 8.3 ± 2.3 | 11.9 ± 1.8 |
+
+- **La GPU fue un 23 % más lenta.** La red tiene 100 101 parámetros y se entrena con lotes de 64: en la
+  GPU pesa más el costo fijo de copiar cada lote y lanzar los kernels que el cálculo en sí.
+- **El emulador marca el ritmo.** Sin red, el emulador da 2 191 pasos/s; con aprendizaje la CPU baja a
+  752 pasos/s. Ese tiempo extra se reparte entre elegir acciones y actualizar la red, y ninguna de
+  las dos partes se acelera en la GPU con una red tan pequeña.
+- **El resultado del aprendizaje no depende del dispositivo.** Las diferencias de puntaje a 100 000
+  pasos (8.3 frente a 11.9) son ruido de una sola corrida corta: el cómputo en coma flotante no es
+  idéntico entre CPU y GPU, así que las trayectorias divergen. Con una sola semilla por dispositivo
+  no hay evidencia de que uno aprenda mejor.
+- La GPU sí sería decisiva en la variante con píxeles y una CNN (`docs/notas-de-desarrollo.md`, sección 3).
 
 ### Curva de aprendizaje
 
@@ -172,9 +204,7 @@ Los valores se presentan como media ± desviación estándar entre episodios. Lo
 La curva muestra el retorno de cada episodio (raw, sin recorte), su promedio móvil de 50 episodios, la
 evaluación greedy cada 25 000 pasos (media ± desviación estándar) y el máximo de filas por vida.
 
-### Línea base a 300 000 pasos
-
-## Interpretación de la curva de aprendisaje 
+### Interpretación de la curva de aprendizaje
 
 La curva reúne los retornos de 7 408 episodios de entrenamiento y 80 evaluaciones realizadas cada 25 000 pasos. Los retornos individuales muestran fluctuaciones, mientras el promedio móvil de 50 episodios permite observar la tendencia general. Este promedio suaviza la variación, pero no significa que todos los episodios tengan un desempeño similar.
 
@@ -185,6 +215,8 @@ En las últimas 20 evaluaciones, correspondientes al tramo posterior a 1.5 millo
 También es necesario distinguir entrenamiento y evaluación. Según la configuración documentada, el entrenamiento mantiene ε = 0.05 después del periodo de decaimiento, mientras las evaluaciones periódicas utilizan ε = 0.01. En los últimos 50 episodios de entrenamiento, el retorno promedio fue de 34.32 puntos. Su diferencia con la evaluación final no implica una contradicción: ambos registros corresponden a condiciones de actuación distintas y no son directamente equivalentes.
 
 Las barras de error representan la desviación estándar de los retornos de los 10 episodios de cada evaluación. Describen la dispersión entre partidas, no un intervalo de confianza ni la variabilidad entre entrenamientos independientes.
+
+### Línea base a 300 000 pasos
 
 Evaluación greedy de 20 episodios (`results/baseline_300k/evaluation.json`):
 
@@ -220,7 +252,7 @@ Umbrales: 🐸 `first_hop` = fila 1; 🥉 `road_crossed` = fila 6; 🪵 `first_l
 La fila de casa es la 12.
 
 \* **Medallas proxy no verificadas.** La detección de casa no está validada contra trazas de RAM. Por eso
-`frog_home`, `three_homes` y `level_cleared` son estimaciones y no logros confirmados del juego.
+`frog_home`, `three_homes` y `level_cleared` son estimaciones y no logros confirmados del juego. En la rama experimental `exp/home-challenge`, la recompensa de casa (+51 a +55; vidas sin cambio y contador de filas reiniciado) se verificó con una traza paso a paso; en `main` las medallas de casa siguen siendo proxies.
 
 ![Hitos por checkpoint](results/run_2m/milestones.png)
 
@@ -272,31 +304,41 @@ Primer episodio de evaluación de cada checkpoint (`results/run_2m/gifs/`):
   episodio llegó a la fila 12, así que no hay evidencia de casas (`homes_max = 0` en todos los checkpoints).
 - **La medalla `first_hop` no discrimina.** La política aleatoria la alcanza en el 100 % de los episodios.
 
-## Reflexión: qué fue lo más difícil
+## Reflexión sobre los resultados
 
-> Borrador dos de para la reflexión de grupo
+> Borrador dos de la reflexión de grupo
 
 
-Los resultados muestran que el agente aprendió a obtener mayor recompensa y a alcanzar etapas más avanzadas que la política aleatoria. 
-En la evaluación por checkpoints, el retorno medio después de 2 millones de pasos fue de 39.3 puntos, frente a 9.4 de la política aleatoria. 
+Los resultados muestran que el agente aprendió a obtener mayor recompensa y a alcanzar etapas más avanzadas que la política aleatoria.
+En la evaluación por checkpoints, el retorno medio después de 2 millones de pasos fue de 39.3 puntos, frente a 9.4 de la política aleatoria.
 Esta mejora respalda el aprendizaje bajo el protocolo utilizado, aunque no significa que el agente haya resuelto Frogger.
 
-El aprendizaje se manifestó por etapas. Primero aumentó la frecuencia con la que el agente cruzaba la carretera y después mejoró su avance hacia la mitad del río. 
+El aprendizaje se manifestó por etapas. Primero aumentó la frecuencia con la que el agente cruzaba la carretera y después mejoró su avance hacia la mitad del río.
 Sin embargo, el retorno y los hitos no siempre evolucionaron en la misma dirección: a los 500 000 pasos, el puntaje medio disminuyó mientras aumentaba la proporción de episodios que alcanzaba la mitad del río.
 Esta observación nos llevó a evaluar el progreso con ambas métricas, porque una caída del retorno no demuestra por sí sola una pérdida de aprendizaje.
 
 También distinguimos obtener más recompensa de superar nuevas etapas. Entre 1 y 2 millones de pasos, el retorno medio aumentó, pero el máximo registrado permaneció en 10 filas y no se reportaron casas.
-Por tanto, la evidencia muestra una mejora en el desempeño parcial, con una dificultad pendiente para completar el recorrido. 
+Por tanto, la evidencia muestra una mejora en el desempeño parcial, con una dificultad pendiente para completar el recorrido.
 Una posible explicación es que el agente acumule menos experiencia en las zonas finales, pero sería necesario analizar las visitas y pérdidas de vida por zona para comprobarlo.
 
-Las evaluaciones periódicas presentan fluctuaciones incluso al final del entrenamiento. 
-Aunque el desempeño se mantiene por encima del observado al inicio, no podemos afirmar una convergencia definitiva. 
+**Por qué el puntaje ronda 40.** El agente avanza unas 8 filas por sapo en sus 5 sapos (filas por sapo observadas: 7 a 10, a veces 3 o 4; por ejemplo, [9, 10, 8, 8, 7] suma 42).
+
+**Causa probable (hipótesis no verificada para el agente RAM).** La recompensa es +1 por fila nueva, no hay castigo por morir y solo el fin de la partida es terminal. Al morir, el sapo vuelve al inicio, donde las mismas filas vuelven a pagar. Con esa formulación, avanzar rápido rinde más que sobrevivir: el agente aprendió a avanzar rápido, no a sobrevivir.
+
+**Nunca vio una casa.** En los 7 408 episodios de entrenamiento no hubo ninguna casa (fila máxima 11). La exploración ε-greedy no produce por azar la secuencia completa de movimientos que lleva a la fila 12, así que la red nunca experimentó la recompensa de casa.
+
+**Prueba propuesta.** Un experimento natural es tratar la pérdida de vida como terminal, lo que cambia la señal que recibe la red. Limitación: esta lectura proviene de una sola semilla y no está verificada para el agente RAM.
+
+Las evaluaciones periódicas presentan fluctuaciones incluso al final del entrenamiento.
+Aunque el desempeño se mantiene por encima del observado al inicio, no podemos afirmar una convergencia definitiva.
 Además, las desviaciones estándar describen diferencias entre episodios de evaluación; una sola corrida larga no permite establecer qué tan consistente sería el aprendizaje con otras semillas de entrenamiento.
 
 Los hitos también tienen límites de interpretación. first_hop no distingue al agente entrenado de la política aleatoria, porque ambos lo alcanzan en todos los episodios evaluados. Los indicadores de casas son proxies cuya detección no fue validada contra trazas de RAM, por lo que no deben presentarse como logros confirmados.
 
 Concluimos que el DQN mostró aprendizaje parcial y que combinar recompensa con hitos permitió comprender mejor su comportamiento.
 Para fortalecer la evidencia, proponemos repetir entrenamientos con otras semillas, conservar la configuración y los resultados individuales de evaluación, y analizar las zonas donde se limita el avance antes de decidir qué cambios realizar en el agente.
+
+## Reflexión: qué fue lo más difícil
 
 <!-- BORRADOR: reescribir con la voz del grupo antes de entregar -->
 
@@ -321,6 +363,28 @@ no leyó ningún archivo. Desde entonces verificamos el contenido de las salidas
 
 Por último, el resultado de 500 000 pasos cambió nuestra lectura del progreso. El puntaje bajó, pero el
 agente cruzaba el río con más frecuencia. Sin las medallas no habríamos visto esa mejora.
+
+## Extensión: rompiendo el techo de la fila 10
+
+El agente de este README no pasa de la fila 10 y nunca llega a casa. En la rama [`exp/home-challenge`](https://github.com/AlejoMoncada/frogger-dqn-lab/tree/exp/home-challenge) probamos una variante con píxeles, CNN (arquitectura de Nature DQN), Double DQN y n-step = 3.
+
+- **Diseño mixto CPU/GPU:** 8 entornos en CPU (`AtariVectorEnv`) y la CNN en GPU. En un piloto de 100 000 pasos fue 4.9 veces más rápido que todo en CPU (607 frente a 123 pasos/s).
+- **Ablación a 5 000 000 de pasos**, 1 semilla por corrida, 20 episodios de evaluación greedy:
+
+| Corrida | Buffer | Recompensa | 🥇 casa | Puntaje |
+|---|---|---|---|---|
+| 2 | 100k | signo | 0 % | 38.1 |
+| 3 | 200k | escalada ×0.1 | 60 % | 78.2 |
+| 4 | 200k | signo | 90 % | 101.2 |
+
+Lectura:
+
+- El tamaño del buffer fue el factor decisivo.
+- Escalar la recompensa no ayudó; con una sola semilla, la diferencia puede ser ruido.
+- Ninguna corrida logró 3 casas. La traza muestra que el agente pierde 4 de sus 5 sapos en el río antes de su única casa, lo que apoya la hipótesis de la sección de reflexión.
+- Una corrida con la pérdida de vida como terminal está en curso.
+
+Estas corridas usan píxeles y CNN, no el agente RAM que se evalúa en este entregable. Son evidencia relacionada, no prueba directa. No hay código nuevo en `main`.
 
 ## Reproducción
 
