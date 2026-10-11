@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import re
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -139,7 +140,10 @@ def find_run_checkpoints(run_dir: Path) -> list[tuple[int, Path]]:
     for relative in manifest:
         path = run_dir / relative
         if not path.exists():
-            raise FileNotFoundError(f"config.json lists {relative} but the file is missing")
+            # A killed run lists checkpoints it never reached; skip them instead of failing.
+            warnings.warn(f"skipping {relative}: listed in config.json but missing on disk",
+                          UserWarning, stacklevel=2)
+            continue
         found.append((int(CHECKPOINT_RE.search(path.name).group(1)), path))
     return sorted(found)
 
