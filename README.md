@@ -369,20 +369,22 @@ agente cruzaba el río con más frecuencia. Sin las medallas no habríamos visto
 El agente de este README no pasa de la fila 10 y nunca llega a casa. En la rama [`exp/home-challenge`](https://github.com/AlejoMoncada/frogger-dqn-lab/tree/exp/home-challenge) probamos una variante con píxeles, CNN (arquitectura de Nature DQN), Double DQN y n-step = 3.
 
 - **Diseño mixto CPU/GPU:** 8 entornos en CPU (`AtariVectorEnv`) y la CNN en GPU. En un piloto de 100 000 pasos fue 4.9 veces más rápido que todo en CPU (607 frente a 123 pasos/s).
-- **Ablación a 5 000 000 de pasos**, 1 semilla por corrida, 20 episodios de evaluación greedy:
+- **Ablación a 5 000 000 de pasos**, 20 episodios de evaluación con ε = 0.01 por checkpoint:
 
-| Corrida | Buffer | Recompensa | 🥇 casa | Puntaje |
-|---|---|---|---|---|
-| 2 | 100k | signo | 0 % | 38.1 |
-| 3 | 200k | escalada ×0.1 | 60 % | 78.2 |
-| 4 | 200k | signo | 90 % | 101.2 |
+| Corrida | Buffer | Recompensa | Pérdida de vida | Semilla | 🥇 casa | Casas por partida (media / máx.) | 🏆 3 casas | Puntaje |
+|---|---|---|---|---|---|---|---|---|
+| 2 | 100k | signo | normal | 42 | 0 % | 0.00 / 0 | 0 % | 38.1 |
+| 3 | 200k | escalada ×0.1 | normal | 42 | 60 % | 0.60 / 1 | 0 % | 78.2 |
+| 3b | 200k | escalada ×0.1 | normal | 43 | 0 % | 0.00 / 0 | 0 % | 36.4 |
+| 4 | 200k | signo | normal | 42 | 90 % | 0.90 / 1 | 0 % | 101.2 |
+| 5 | 200k | signo | **terminal** | 42 | 90 % | 1.35 / 3 | **5 %** | **122.2** |
 
 Lectura:
 
-- El tamaño del buffer fue el factor decisivo.
-- Escalar la recompensa no ayudó; con una sola semilla, la diferencia puede ser ruido.
-- Ninguna corrida logró 3 casas. La traza muestra que el agente pierde 4 de sus 5 sapos en el río antes de su única casa, lo que apoya la hipótesis de la sección de reflexión.
-- Una corrida con la pérdida de vida como terminal está en curso.
+- **El buffer de 200k hizo posible llegar a casa, pero no lo garantiza.** Con 100k ninguna corrida llegó. Con 200k llegaron tres de cuatro corridas, pero la réplica 3b, con la misma configuración que la 3 y otra semilla, se quedó en la fila 10. Los resultados dependen de la semilla: con una corrida por configuración solo hay indicios.
+- **Escalar la recompensa no mostró ventaja**: 60 % y 0 % frente a 90 % sin escalar.
+- **Tratar la pérdida de vida como terminal (corrida 5) apoya la hipótesis de la reflexión.** Solo el aprendizaje cambia: el juego sigue con sus 5 sapos. En el tramo de 4M a 5M, las partidas de entrenamiento duraron un 65 % más que en la corrida 4 (696 frente a 422 pasos), y 535 de 1 434 partidas tuvieron 2 casas o más, con un máximo de 3. En ese mismo tramo, la corrida 4 tuvo 0 partidas con más de una casa en 2 363: perdía 4 de sus 5 sapos en el río antes de llegar. Es una sola semilla.
+- **Duda abierta:** la corrida 3 se interrumpió por falta de memoria y se retomó a los 2.5M con el buffer vacío. Su salto llegó después de retomarla, y la réplica 3b, que corrió de corrido, no saltó. No sabemos si el reinicio influyó.
 
 Estas corridas usan píxeles y CNN, no el agente RAM que se evalúa en este entregable. Son evidencia relacionada, no prueba directa. No hay código nuevo en `main`.
 
