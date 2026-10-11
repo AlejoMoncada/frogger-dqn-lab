@@ -35,6 +35,7 @@ does what it is best at.
 - [ ] H7 Run 3: buffer 200k, reward_mode=scale 0.1 (home +5.5, row +0.1), 5M steps (route: inline background)
 - [x] H9 Frame-sharing replay, 8x less memory: one stored frame per env step, about 7.1 KB instead of 56.5 KB per transition (route: delegated writer)
 - [x] H10 Colab overkill notebook: `colab/frogger_overkill.ipynb` + `colab/README.md`, CLI flags for batch, threads, target interval, warmup, epsilon decay and lr (route: delegated writer)
+- [x] H11 Apple MPS support + Mac guide: `--device {cpu,cuda,mps,auto}`, device-aware sync and pinning, platform-conditional torch source, `docs/mac.md`. Real MPS execution is unverified until the user's 100k pilot (route: delegated writer, Haiku)
 
 - [ ] H8 Run 4: buffer 200k, reward_mode=sign, 5M steps (isolates buffer vs reward with run 3) — chained after run 3
 
@@ -151,6 +152,29 @@ does what it is best at.
     and plots, results). `nbformat.validate` passes (nbformat 4.5). The notebook was not executed.
   - Deviation: `total_steps` is rounded down to a multiple of `num_envs`, since the trainer requires it
     (20 M is not divisible by 12, 24 or 28).
+- H11 Apple MPS support + Mac guide (`exp/home-challenge`, route: delegated writer):
+  - Lock: `pyproject.toml` torch source is `marker = "sys_platform != 'darwin'"` on `pytorch-cu128`.
+    `uv lock` splits torch: Windows/Linux `2.11.0+cu128` (cu128 index); darwin `2.14.1` from PyPI with
+    `macosx_14_0_arm64` wheels for cp311, cp312 and cp313. `ale-py==0.12.1` has `macosx_13_0_arm64`
+    wheels for cp311, cp312 and cp313. Deviation: the Mac torch version (2.14.1) differs from Windows
+    (2.11.0); uv picked the latest PyPI release for darwin.
+  - Windows check (read-only, no sync run): `uv sync --dry-run` gives "Would make no changes";
+    `.venv` python reports `torch 2.11.0+cu128`, `cuda.is_available() = True`.
+  - Device: `dqn_frogger/pixels/device.py` (`resolve_device`, `default_device`, `pin_memory_enabled`,
+    `sync_device`, `host_info`). `auto` = cuda, then mps, then cpu. Unavailable devices raise a clear
+    error (`SystemExit` in the CLI). `train_pixels.py` and root `milestones.py` use it.
+  - Pinning: both replays pin only when CUDA is available; the trainer passes pin only for CUDA.
+    `torch.cuda.synchronize` is replaced by `sync_device` (`torch.mps.synchronize` on MPS, no-op on CPU).
+  - Checkpoints: loads already use `map_location` (`agent.load` to its device, trainer restore to CPU
+    then moves to the device). Covered by a test.
+  - `config.json` and `timing.json` record `device` and `host` (system, machine, processor, macOS version).
+  - Tests: `tests/test_pixels_device.py`, 25 new (resolve per name with monkeypatched availability,
+    auto order, errors; pin gating in both replays; sync dispatch; checkpoint `map_location` cpu;
+    host and device recorded). Not RED-first: the code was written before the tests.
+  - `uv run --no-sync pytest -q`: 138 passed. `uv run --no-sync python train_pixels.py --smoke --device cpu
+    --output-dir runs/mps_cpu_smoke`: done, `timing.json` device `cpu`, host `AMD64`.
+  - Unverified: real MPS execution, MPS speed and MPS numeric behavior. These wait for the user's 100k pilot.
+  - Guide: `docs/mac.md`.
 
 ## Next step
 H3: choose the long-run budget (user decision). Long runs now use `--save-interval`; resume a
