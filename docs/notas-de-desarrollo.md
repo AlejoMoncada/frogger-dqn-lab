@@ -214,3 +214,21 @@ solo un arreglo de observaciones. Cabe en 32 GB, pero el dato correcto es 11,3 G
 En el humo el aprendizaje en GPU ya es casi cuatro veces más rápido que en CPU (≈7 ms y ≈27 ms
 por actualización de lote 32). La evaluación domina el tiempo total porque corre con un solo
 entorno y un episodio largo; el pilotaje de la sección H2 medirá el régimen real.
+
+### Incidente: corrida de 5M cortada por falta de memoria
+
+La corrida de 5M pasos (`results/run_px_5m`) se detuvo en 4,6M pasos porque se quedó sin RAM.
+El búfer de 200 000 transiciones necesita unos 11,3 GB, más 2 a 3 GB de torch y CUDA. Otras
+aplicaciones ya ocupaban unos 18 GB de los 32 GB. Los puntos de control solo existían en 100k,
+250k, 500k, 1M, 2M y 3M, así que los pesos de 3M a 4,6M se perdieron. El agente llegaba a casa en
+28 % de los episodios en ese tramo, y no hay forma de recuperarlo.
+
+Lecciones:
+
+- Guardar con frecuencia. Un punto de control cada 250 000 pasos (`--save-interval`) y un
+  `latest.pt` que se reemplaza de forma atómica limitan la pérdida a ese intervalo.
+- Presupuestar la memoria contra la que está libre ahora, no contra la RAM total. El arranque
+  compara la estimación del búfer más 3 GB de margen con `psutil.virtual_memory().available`,
+  y se niega a empezar si no cabe (`--force-memory` lo omite a propósito).
+- Reanudar con `--resume` restaura redes, optimizador, contadores y estados de RNG. El búfer no
+  se guarda: se vuelve a llenar, y el calentamiento (`learning_starts`) se aplica otra vez.
