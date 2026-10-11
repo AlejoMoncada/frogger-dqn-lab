@@ -33,6 +33,7 @@ does what it is best at.
 - [ ] H5 Compare RAM+MLP vs pixels+CNN in one table; notes section (route: delegated writer)
 - [x] H6 Reward scaling option (home = +55 verified) (route: delegated writer, Haiku)
 - [ ] H7 Run 3: buffer 200k, reward_mode=scale 0.1 (home +5.5, row +0.1), 5M steps (route: inline background)
+- [x] H9 Frame-sharing replay, 8x less memory: one stored frame per env step, about 7.1 KB instead of 56.5 KB per transition (route: delegated writer)
 
 ## Acceptance criteria
 - Pilot reports measured steps/s for both configurations.
@@ -105,6 +106,27 @@ does what it is best at.
     the missing symbols), then GREEN. `uv run pytest -q`: 96 passed (88 before + 8).
   - Smoke CPU (`runs/reward_smoke`, `--reward-mode scale --reward-scale 0.1`): config.json has
     `"reward_mode": "scale"`, `"reward_scale": 0.1`; 2 000 steps, 37.8 steps/s.
+
+- H9 frame-sharing replay (`exp/home-challenge`):
+  - `replay_impl` "frame" (default) or "stacked" (`--replay-impl`). `FrameReplay` in
+    `dqn_frogger/pixels/frame_replay.py`. Stack semantics measured on AtariVectorEnv: the reset stack
+    is `[0, 0, 0, f]`, and each step's first three channels equal the previous step's last three
+    (4 488 of 4 488 checks). Frames are stored once, with zero fill before the episode start.
+  - Tests (`tests/test_pixels_frame_replay.py`, 14 new): same scripted stream into both layouts
+    (4 parameter sets, one with wraparound); real AtariVectorEnv stream (3 envs, 400 steps, with
+    episode ends); eviction never samples overwritten transitions; zero fill never reads the previous
+    episode; trainer stores one row per real step (autoreset skipped); config records `replay_impl`.
+    RED: collection ImportError for the missing symbols. Mutation check: disabling zero fill or frame
+    eviction fails the tests. `uv run pytest -q`: 110 passed (96 before + 14).
+  - Bytes per transition: 7 105 (one 7 056-byte frame plus 49 index bytes) vs 56 468 stacked, 8x less.
+    200 000 transitions: 1.42 GB of arrays; guard `replay estimate 1.42 GB + margin 3.0 GB`.
+  - Smoke CUDA `runs/frame_smoke` (`--buffer-size 200000`): 209.9 steps/s (earlier 170-200).
+  - RSS (psutil): 0.51 GB before allocation, 1.94 GB after filling 199 058 transitions with 8 envs.
+    Deviation: the smoke fills about 2k transitions only, so RSS comes from a synthetic fill.
+  - Frame slots per env = capacity / envs + n_step + 8. Each episode start uses a frame slot without a
+    transition, so with short episodes some oldest transitions are evicted early (942 of 200k in the
+    synthetic run). Evicted transitions are never sampled.
+  - Resume: `replay_impl` is a resume-free field; saved configs without it resume unchanged.
 
 ## Next step
 H3: choose the long-run budget (user decision). Long runs now use `--save-interval`; resume a

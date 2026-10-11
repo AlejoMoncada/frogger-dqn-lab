@@ -233,6 +233,22 @@ Lecciones:
 - Reanudar con `--resume` restaura redes, optimizador, contadores y estados de RNG. El búfer no
   se guarda: se vuelve a llenar, y el calentamiento (`learning_starts`) se aplica otra vez.
 
+### Corrida 3 cortada por memoria y búfer de marcos compartidos
+
+La corrida 3 (`results/run_px_5m_r3`, búfer de 200 000, recompensa `scale`) se detuvo en 2,74 M
+pasos por falta de memoria. El último punto de control guardado es 2,5 M. Para reducir la
+memoria se añadió `replay_impl = "frame"` (predeterminado): cada cuadro 84×84 se guarda una vez
+por paso de cada entorno, y cada transición guarda solo índices a sus cuadros. Medido:
+
+- Bytes por transición: 7 105 (7 056 del cuadro más 49 de índices), frente a 56 468 del formato
+  apilado (`replay_impl = "stacked"`): unas 8 veces menos.
+- Búfer de 200 000 transiciones: 1,42 GB de arreglos, frente a 11,3 GB. La guarda de memoria
+  estima 1,42 GB más 3 GB de margen. Humo CUDA con ese búfer (`runs/frame_smoke`): 209,9 pasos/s.
+- Llenado sintético de 199 058 transiciones con 8 entornos: RSS del proceso de 0,51 GB a 1,94 GB.
+- Con episodios sintéticos de 1 a 400 pasos se descartaron 942 transiciones (0,5 %) porque el
+  inicio de cada episodio ocupa una posición de cuadro sin transición. Sus cuadros ya fueron
+  sobrescritos, así que nunca se muestrean.
+
 ### Recompensa de casa
 
 Traza verificada en `ALE/Frogger-v5` (paso 231 de la traza): la recompensa es 55 al llegar a casa
