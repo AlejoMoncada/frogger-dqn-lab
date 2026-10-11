@@ -57,6 +57,16 @@ PILOT_H2: dict[str, Any] = {
     "all_cpu_steps_per_second": 122.8,
     "gpu_util_mean_percent": 45.6,
 }
+# Home detection status shown on the page. The leaderboards no longer mark home medals as proxies:
+# the H6 step-by-step trace (1M checkpoint, seed 900008) matches the tracker rule in
+# dqn_frogger/milestones.py (a positive reward on the 12th counted row, no life lost that step).
+HOME_DETECTION: dict[str, str] = {
+    "status": "verified",
+    "evidence": (
+        "Verificada con una traza paso a paso (checkpoint de 1 M, semilla 900008): al llegar a casa "
+        "desde la fila 11, la recompensa es +55, las vidas siguen en 3 y la fila vuelve a 0."
+    ),
+}
 MEMORY_NOTES: dict[str, Any] = {
     "source": "docs/notas-de-desarrollo.md, sección 7",
     "buffer_size": 200000,
@@ -260,7 +270,6 @@ def _build_run(
         "status": "partial" if spec.get("partial") else "complete",
         "notes": notes,
         "settings": settings,
-        "proxy_medals": list(leaderboard.get("proxy_medals", [])),
         "rows": rows,
     }
 
@@ -303,7 +312,7 @@ def _hero(runs: list[dict[str, Any]]) -> dict[str, Any] | None:
         "run_label": best_run["label"],
         "checkpoint": best_row,
         "random": random_row,
-        "reason": "la mayor proporción de la medalla proxy de casa; en empate, el mayor puntaje",
+        "reason": "la mayor proporción de episodios con casa; en empate, el mayor puntaje",
     }
 
 
@@ -351,6 +360,7 @@ def build(results_dir: Path, out_dir: Path) -> dict[str, Any]:
         "runs": runs,
         "best_by_run": {run["id"]: _best(run) for run in runs},
         "hero": _hero(runs),
+        "home_detection": HOME_DETECTION,
         "medal_ladder": MEDAL_LADDER,
         "pilot_h2": PILOT_H2,
         "memory": MEMORY_NOTES,

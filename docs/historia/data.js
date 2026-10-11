@@ -107,9 +107,13 @@ window.STORY_DATA = {
       "step": null,
       "title": "Aleatoria"
     },
-    "reason": "la mayor proporción de la medalla proxy de casa; en empate, el mayor puntaje",
+    "reason": "la mayor proporción de episodios con casa; en empate, el mayor puntaje",
     "run_id": "run_px_5m_r5",
     "run_label": "Corrida 5"
+  },
+  "home_detection": {
+    "evidence": "Verificada con una traza paso a paso (checkpoint de 1 M, semilla 900008): al llegar a casa desde la fila 11, la recompensa es +55, las vidas siguen en 3 y la fila vuelve a 0.",
+    "status": "verified"
   },
   "medal_ladder": [
     {
@@ -175,11 +179,6 @@ window.STORY_DATA = {
       "label": "RAM + MLP (entrega)",
       "notes": [
         "Sin config.json: la configuración viene del README"
-      ],
-      "proxy_medals": [
-        "frog_home",
-        "three_homes",
-        "level_cleared"
       ],
       "rows": [
         {
@@ -364,11 +363,6 @@ window.STORY_DATA = {
       "notes": [
         "Detenida por falta de memoria en 4,6 M de pasos (episodes.csv). Los checkpoints llegan hasta 3 M.",
         "Sin timing.json: no hay pasos por segundo registrados"
-      ],
-      "proxy_medals": [
-        "frog_home",
-        "three_homes",
-        "level_cleared"
       ],
       "rows": [
         {
@@ -576,11 +570,6 @@ window.STORY_DATA = {
       "id": "run_px_5m_safe",
       "label": "Corrida 2",
       "notes": [],
-      "proxy_medals": [
-        "frog_home",
-        "three_homes",
-        "level_cleared"
-      ],
       "rows": [
         {
           "episodes": 20,
@@ -818,11 +807,6 @@ window.STORY_DATA = {
       "notes": [
         "Detenida por falta de memoria en 2,74 M de pasos; reanudada desde el checkpoint de 2,5 M."
       ],
-      "proxy_medals": [
-        "frog_home",
-        "three_homes",
-        "level_cleared"
-      ],
       "rows": [
         {
           "episodes": 20,
@@ -1053,11 +1037,6 @@ window.STORY_DATA = {
       "id": "run_px_5m_r4",
       "label": "Corrida 4",
       "notes": [],
-      "proxy_medals": [
-        "frog_home",
-        "three_homes",
-        "level_cleared"
-      ],
       "rows": [
         {
           "episodes": 20,
@@ -1293,11 +1272,6 @@ window.STORY_DATA = {
       "id": "run_px_5m_r5",
       "label": "Corrida 5",
       "notes": [],
-      "proxy_medals": [
-        "frog_home",
-        "three_homes",
-        "level_cleared"
-      ],
       "rows": [
         {
           "episodes": 20,
@@ -1535,11 +1509,6 @@ window.STORY_DATA = {
       "id": "run_px_5m_r3_seed43_mac",
       "label": "Corrida 3b (Mac)",
       "notes": [],
-      "proxy_medals": [
-        "frog_home",
-        "three_homes",
-        "level_cleared"
-      ],
       "rows": [
         {
           "episodes": 20,

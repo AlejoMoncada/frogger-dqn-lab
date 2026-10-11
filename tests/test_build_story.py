@@ -103,7 +103,7 @@ def test_build_writes_structured_data_and_copies_assets(builder: ModuleType, tmp
     assert set(runs) == {"run_fake_full", "run_fake_killed"}
     full = runs["run_fake_full"]
     assert full["status"] == "complete"
-    assert full["proxy_medals"] == ["frog_home", "three_homes", "level_cleared"]
+    assert "proxy_medals" not in full
     settings = full["settings"]
     assert settings["buffer_size"] == 200000
     assert settings["replay"] == "frame"
@@ -152,6 +152,21 @@ def test_data_js_is_a_script_with_parseable_json(builder: ModuleType, tmp_path: 
     assert text.rstrip().endswith(";")
     payload = json.loads(text[len(prefix):].rstrip().removesuffix(";"))
     assert [item["key"] for item in payload["medal_ladder"]] == list(builder.MEDAL_ORDER)
+
+
+def test_home_detection_is_verified_and_no_home_proxy_is_emitted(builder: ModuleType, tmp_path: Path) -> None:
+    results = _make_fake_results(tmp_path)
+    out = tmp_path / "historia"
+    builder.write_data_js(builder.build(results, out), out)
+
+    text = (out / "data.js").read_text(encoding="utf-8")
+    payload = json.loads(text[len("window.STORY_DATA = "):].rstrip().removesuffix(";"))
+    detection = payload["home_detection"]
+    assert detection["status"] == "verified"
+    assert "+55" in detection["evidence"]
+    assert "proxy" not in text
+    for run in payload["runs"]:
+        assert "proxy_medals" not in run
 
 
 def test_rebuild_is_idempotent_and_removes_stale_assets(builder: ModuleType, tmp_path: Path) -> None:

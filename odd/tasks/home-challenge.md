@@ -29,7 +29,7 @@ does what it is best at.
 - [x] H2 Pilot measurement: 100k steps mixed (CPU envs + GPU learner) vs all-CPU; steps/s, GPU util (route: inline background)
 - [x] H2b Harden runs: memory guard, periodic checkpoints, resume (route: delegated writer, Haiku)
 - [ ] H3 Decide budget from pilot; long run with checkpoints; leaderboard + GIFs (route: inline background)
-- [ ] H4 Verify home detection with a real trajectory if any frog reaches row 12 (route: delegated)
+- [x] H4 Verify home detection with a real trajectory if any frog reaches row 12 (route: delegated; evidence: H6 trace, see Progress)
 - [ ] H5 Compare RAM+MLP vs pixels+CNN in one table; notes section (route: delegated writer)
 - [x] H6 Reward scaling option (home = +55 verified) (route: delegated writer, Haiku)
 - [ ] H7 Run 3: buffer 200k, reward_mode=scale 0.1 (home +5.5, row +0.1), 5M steps (route: inline background)
@@ -206,6 +206,15 @@ does what it is best at.
     target, which should reduce risky river crossings and allow more than one home per game.
   - Evaluation, MilestoneTracker and leaderboard are untouched (full 5-life games).
   - Commits: `dcbdee6` (feat pixels, code and tests), `5874dc5` (feat colab preset key).
+
+- H4 home detection verified (`exp/home-challenge`, route: delegated writer):
+  - Evidence: the H6 step-by-step trace of the 1M checkpoint (seed 900008): hop from row 11 to home at
+    step 231, reward +55, lives 3 to 3, RAM row byte 11 to 0, BCD score 20 to 75.
+  - Tracker check (`dqn_frogger/milestones.py`, `MilestoneTracker.observe`): a positive reward increments
+    the row count; at `HOME_ROW` (12) with no life lost on that step it counts one home and resets the
+    count. The trace matches this rule.
+  - Page: `tools/build_story.py` no longer propagates `proxy_medals` and writes
+    `home_detection: {status: "verified"}` to `data.js`; the page drops the proxy tags and the H4 note.
 
 ## Next step
 H3: choose the long-run budget (user decision). Long runs now use `--save-interval`; resume a

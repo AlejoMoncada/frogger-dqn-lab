@@ -91,15 +91,6 @@
       : "RAM";
   }
 
-  function proxyNames(run) {
-    const names = {
-      frog_home: "Casa",
-      three_homes: "Tres casas",
-      level_cleared: "Nivel completo",
-    };
-    return (run.proxy_medals || []).map((key) => names[key] || key);
-  }
-
   // ---------- hero ----------
 
   function heroFigure(row, title, caption, alt) {
@@ -141,7 +132,7 @@
       heroFigure(
         best,
         `${hero.run_label} · ${best.title} pasos`,
-        `Puntaje ${fmt(best.score_mean, 1)} ± ${fmt(best.score_std, 1)} · ${pct(best.medals.frog_home)} de casa (proxy)`,
+        `Puntaje ${fmt(best.score_mean, 1)} ± ${fmt(best.score_std, 1)} · ${pct(best.medals.frog_home)} de episodios con casa`,
         `GIF del mejor checkpoint, ${best.title} pasos, primer episodio de evaluación`
       ),
       el("p", { class: "hero-note", text:
@@ -194,10 +185,8 @@
     clear(list);
     race.ladderRefs = [];
     DATA.medal_ladder.forEach((medal) => {
-      const proxy = (run.proxy_medals || []).indexOf(medal.key) !== -1;
       const name = el("span", { class: "name" }, [
         medal.name,
-        proxy ? el("span", { class: "chip chip-proxy", text: "proxy" }) : null,
         el("span", { class: "threshold", text: medal.threshold }),
       ]);
       const earnedChip = el("span", { class: "chip", text: "obtenida", hidden: true });
@@ -211,7 +200,7 @@
         el("span", { class: "bar", role: "presentation" }, [fill]),
       ]);
       list.append(item);
-      race.ladderRefs.push({ key: medal.key, item, fill, pctLabel, earnedChip, proxy });
+      race.ladderRefs.push({ key: medal.key, item, fill, pctLabel, earnedChip });
     });
   }
 
@@ -306,13 +295,9 @@
     buildLadder(race.run);
     const runNote = document.getElementById("race-run-note");
     runNote.textContent = [race.run.change, ...race.run.notes].filter(Boolean).join(" ");
-    const names = proxyNames(race.run);
-    const proxyNote = document.getElementById("proxy-note");
-    proxyNote.textContent = names.length
-      ? `En esta corrida, las medallas de casa (${names.join(", ")}) son proxies: el detector de casa no se ha validado contra trazas de RAM. ` +
-        "Una traza verificada (paso 231, recompensa de 55 y fila de 11 a 0) confirma el evento de casa en un episodio, " +
-        "pero la validación del detector queda pendiente (tarea H4)."
-      : "Esta corrida no marca medallas proxy en su leaderboard.";
+    const homeDetection = DATA.home_detection;
+    document.getElementById("home-note").textContent =
+      homeDetection && homeDetection.status === "verified" ? homeDetection.evidence : "";
     setCheckpoint(race.run.rows.length - 1, false);
   }
 
@@ -431,7 +416,7 @@
       ? "Porcentaje de episodios con casa por punto de control"
       : "Fila máxima media por punto de control";
     svg.querySelector("desc").textContent = isHome
-      ? "Líneas por corrida con el porcentaje de episodios que llegan a casa (proxy) frente a los pasos de entrenamiento. La corrida RAM aparece en línea punteada."
+      ? "Líneas por corrida con el porcentaje de episodios que llegan a casa frente a los pasos de entrenamiento. La corrida RAM aparece en línea punteada."
       : "Líneas por corrida con la fila máxima media por episodio frente a los pasos de entrenamiento. La fila 12 es la casa.";
 
     yTicks.forEach((value) => {
@@ -453,7 +438,7 @@
       "text-anchor": "middle",
       transform: `rotate(-90 14 ${T + plotH / 2})`,
       class: "axis-title",
-    }, isHome ? "Episodios con casa (proxy)" : "Fila máxima media"));
+    }, isHome ? "Episodios con casa" : "Fila máxima media"));
 
     DATA.runs.forEach((run, i) => {
       const points = run.rows.filter((row) => row.step !== null).sort((a, b) => a.step - b.step);
@@ -470,7 +455,7 @@
       group.append(line);
       points.forEach((row, j) => {
         const dot = svgEl("circle", { cx: x(row.step), cy: y(values[j]), r: 4.5, class: "dot" });
-        dot.append(svgEl("title", {}, `${run.label}, ${row.title} pasos: ${isHome ? pct(row.medals.frog_home) + " de casa (proxy)" : fmt(row.max_rows_mean, 1) + " de fila máxima"}`));
+        dot.append(svgEl("title", {}, `${run.label}, ${row.title} pasos: ${isHome ? pct(row.medals.frog_home) + " de episodios con casa" : fmt(row.max_rows_mean, 1) + " de fila máxima"}`));
         group.append(dot);
       });
       svg.append(group);

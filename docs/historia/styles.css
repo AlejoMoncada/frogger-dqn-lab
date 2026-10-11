@@ -640,11 +640,6 @@ kbd {
   vertical-align: middle;
 }
 
-.chip-proxy {
-  border-style: dashed;
-  color: var(--muted);
-}
-
 .timeline {
   margin-top: 28px;
   display: grid;

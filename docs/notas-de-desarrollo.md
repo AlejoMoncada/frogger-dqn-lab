@@ -102,6 +102,8 @@ fila 12 cuenta como una casa** (y reinicia la fila a 0 sin perder vida). Esa reg
 suposición sin verificar. Las medallas `frog_home`, `three_homes` y `level_cleared` quedan
 marcadas como no verificadas hasta que una trayectoria real llegue a casa.
 
+**Verificación (reto H4):** una traza paso a paso del punto de control de 1 M (semilla 900008) confirma la regla del rastreador: al llegar a casa desde la fila 11 la recompensa es +55, las vidas siguen en 3 y la fila vuelve a 0, por lo que la detección de casa queda verificada.
+
 ## 5. Revisión independiente
 
 **Primera ejecución fallida.** La primera revisión con Codex falló por el entorno de Windows: el
