@@ -39,6 +39,28 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Learner updates after each vector step (default 1).",
     )
+    parser.add_argument(
+        "--buffer-size",
+        type=int,
+        default=None,
+        help="Replay capacity in transitions (default 100000, about 5.6 GB of host RAM).",
+    )
+    parser.add_argument(
+        "--save-interval",
+        type=int,
+        default=None,
+        help="Env steps between resumable checkpoints (default 250000).",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Continue from <output-dir>/checkpoints/latest.pt (replay is refilled, not restored).",
+    )
+    parser.add_argument(
+        "--force-memory",
+        action="store_true",
+        help="Start even when the replay estimate plus 3 GB exceeds the RAM free now.",
+    )
     return parser.parse_args()
 
 
@@ -63,11 +85,21 @@ def main() -> None:
         overrides["seed"] = args.seed
     if args.updates_per_vector_step is not None:
         overrides["updates_per_vector_step"] = args.updates_per_vector_step
+    if args.buffer_size is not None:
+        overrides["buffer_size"] = args.buffer_size
+    if args.save_interval is not None:
+        overrides["save_interval"] = args.save_interval
     config = replace(config, **overrides)
 
     try:
-        metrics = train(config, args.output_dir, overwrite=args.overwrite)
-    except (FileExistsError, ValueError) as error:
+        metrics = train(
+            config,
+            args.output_dir,
+            overwrite=args.overwrite,
+            resume=args.resume,
+            force_memory=args.force_memory,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as error:
         raise SystemExit(f"error: {error}") from error
     print(f"done: {metrics}")
 

@@ -18,7 +18,7 @@ class PixelDQNConfig:
     total_steps: int = 2_000_000
     num_envs: int = 8
     num_threads: int = 8
-    buffer_size: int = 200_000
+    buffer_size: int = 100_000  # ~5.6 GB of host RAM (obs + next_obs as uint8)
     batch_size: int = 128
     gamma: float = 0.99
     n_step: int = 3
@@ -35,6 +35,7 @@ class PixelDQNConfig:
     eval_interval: int = 100_000
     eval_epsilon: float = 0.01
     checkpoint_steps: tuple[int, ...] = DEFAULT_CHECKPOINT_STEPS
+    save_interval: int = 250_000  # periodic resumable checkpoint + checkpoints/latest.pt
     device: str = ""  # "" resolves to cuda when available, else cpu (see __post_init__)
 
     def __post_init__(self) -> None:
@@ -46,6 +47,8 @@ class PixelDQNConfig:
             raise ValueError("num_envs and n_step must be positive")
         if self.updates_per_vector_step < 0:
             raise ValueError("updates_per_vector_step cannot be negative")
+        if self.save_interval <= 0:
+            raise ValueError("save_interval must be positive")
 
     def active_checkpoint_steps(self) -> tuple[int, ...]:
         """Checkpoint steps not beyond `total_steps`, always including the final step."""

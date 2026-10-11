@@ -88,9 +88,26 @@ class PixelDQNAgent:
         self.target_net.load_state_dict(self.online_net.state_dict())
 
     def save(self, path: Path | str) -> None:
+        """Online weights only (the final model file, read by milestones)."""
         torch.save(self.online_net.state_dict(), path)
 
+    def resumable_state(self) -> dict:
+        """Online and target networks plus the optimizer: everything a resume needs."""
+        return {
+            "online_net": self.online_net.state_dict(),
+            "target_net": self.target_net.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+        }
+
+    def restore_resumable_state(self, state: dict) -> None:
+        self.online_net.load_state_dict(state["online_net"])
+        self.target_net.load_state_dict(state["target_net"])
+        self.optimizer.load_state_dict(state["optimizer"])
+
     def load(self, path: Path | str) -> None:
-        state = torch.load(path, map_location=self.device)
+        """Accepts both the online-only file and a resumable checkpoint bundle."""
+        state = torch.load(path, map_location=self.device, weights_only=False)
+        if isinstance(state, dict) and "online_net" in state:
+            state = state["online_net"]
         self.online_net.load_state_dict(state)
         self.sync_target()
