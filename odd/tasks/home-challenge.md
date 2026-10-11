@@ -34,6 +34,7 @@ does what it is best at.
 - [x] H6 Reward scaling option (home = +55 verified) (route: delegated writer, Haiku)
 - [ ] H7 Run 3: buffer 200k, reward_mode=scale 0.1 (home +5.5, row +0.1), 5M steps (route: inline background)
 - [x] H9 Frame-sharing replay, 8x less memory: one stored frame per env step, about 7.1 KB instead of 56.5 KB per transition (route: delegated writer)
+- [x] H10 Colab overkill notebook: `colab/frogger_overkill.ipynb` + `colab/README.md`, CLI flags for batch, threads, target interval, warmup, epsilon decay and lr (route: delegated writer)
 
 - [ ] H8 Run 4: buffer 200k, reward_mode=sign, 5M steps (isolates buffer vs reward with run 3) — chained after run 3
 
@@ -137,6 +138,19 @@ does what it is best at.
     transition, so with short episodes some oldest transitions are evicted early (942 of 200k in the
     synthetic run). Evicted transitions are never sampled.
   - Resume: `replay_impl` is a resume-free field; saved configs without it resume unchanged.
+- H10 Colab overkill notebook (`exp/home-challenge`):
+  - `dba9ad9` feat(pixels): flags `--batch-size`, `--num-threads`, `--target-update-interval`,
+    `--learning-starts`, `--eps-decay-steps`, `--lr`. They were already dataclass fields, so
+    `trainer.py` and `config.py` are unchanged and existing checkpoints and resume are unaffected.
+    Defaults are unchanged. Test `tests/test_pixels_cli.py` (3 tests). No RED run was observed: the tests were written after the flags.
+  - `uv run pytest -q`: 113 passed.
+  - CPU smoke `runs/cli_smoke` with `--batch-size 64 --num-threads 2`: config.json has
+    `batch_size: 64`, `num_threads: 2`, `lr: 0.0001` (default, flag omitted), `learning_starts: 200`.
+  - `36136c2` feat(colab): notebook with 14 cells (title and warnings, hardware report and CONFIG,
+    Drive, clone and pip install with CUDA check, smoke, training with auto `--resume`, leaderboard
+    and plots, results). `nbformat.validate` passes (nbformat 4.5). The notebook was not executed.
+  - Deviation: `total_steps` is rounded down to a multiple of `num_envs`, since the trainer requires it
+    (20 M is not divisible by 12, 24 or 28).
 
 ## Next step
 H3: choose the long-run budget (user decision). Long runs now use `--save-interval`; resume a
