@@ -38,6 +38,7 @@ does what it is best at.
 - [x] H11 Apple MPS support + Mac guide: `--device {cpu,cuda,mps,auto}`, device-aware sync and pinning, platform-conditional torch source, `docs/mac.md`. Real MPS execution is unverified until the user's 100k pilot (route: delegated writer, Haiku)
 - [x] H12 Life loss as terminal (episodic life for TD only): `--life-loss-terminal` / `life_loss_terminal`; a lost life ends the bootstrap, the game goes on (route: delegated direct, writer)
 - [x] H13 Run 5: 200k, sign, life_loss_terminal, 5M (route: inline background)
+- [x] H14 Interactive story page (local, docs/historia): `tools/build_story.py` writes `docs/historia/data.js` and copies 220 referenced GIFs/screenshots (all present); `uv run pytest -q` 152 passed (4 new); headless Chrome: no console errors, no horizontal overflow at 400px, light and dark screenshots checked (route: delegated writer)
 
 - [x] H8 Run 4: buffer 200k, reward_mode=sign, 5M steps (isolates buffer vs reward with run 3) — chained after run 3
 
