@@ -37,7 +37,7 @@ does what it is best at.
 - [x] H10 Colab overkill notebook: `colab/frogger_overkill.ipynb` + `colab/README.md`, CLI flags for batch, threads, target interval, warmup, epsilon decay and lr (route: delegated writer)
 - [x] H11 Apple MPS support + Mac guide: `--device {cpu,cuda,mps,auto}`, device-aware sync and pinning, platform-conditional torch source, `docs/mac.md`. Real MPS execution is unverified until the user's 100k pilot (route: delegated writer, Haiku)
 - [x] H12 Life loss as terminal (episodic life for TD only): `--life-loss-terminal` / `life_loss_terminal`; a lost life ends the bootstrap, the game goes on (route: delegated direct, writer)
-- [ ] H13 Run 5: 200k, sign, life_loss_terminal, 5M (route: inline background)
+- [x] H13 Run 5: 200k, sign, life_loss_terminal, 5M (route: inline background)
 
 - [x] H8 Run 4: buffer 200k, reward_mode=sign, 5M steps (isolates buffer vs reward with run 3) — chained after run 3
 
@@ -48,7 +48,8 @@ does what it is best at.
 | 2 | 100k | sign | done: max row 10, 0 homes in eval, final 38.1 |
 | 3 | 200k | scale 0.1 | done (resumed at 2.5M with frame replay): 5M eval 78.2, frog_home 60% |
 | 4 | 200k | sign | done: 3M frog_home 85%, 5M eval 101.2, frog_home 90%; 550.9 steps/s |
-| 3b | 200k | scale 0.1, seed 43 | running on MacBook Pro M4 (MPS, ~435 steps/s) |
+| 3b | 200k | scale 0.1, seed 43 | done on MacBook Pro M4 (MPS, 379.5 steps/s): 5M eval 36.4, frog_home 0%, max row 10 |
+| 5 | 200k | sign + life_loss_terminal | done: 5M eval 122.2, frog_home 90%, homes mean/max 1.35/3, three_homes 5% (first ever) |
 
 ## Acceptance criteria
 - Pilot reports measured steps/s for both configurations.
@@ -214,3 +215,9 @@ killed run with `--resume` on the same `--output-dir`.
 - Reward scaling did not help on top of the 200k buffer: run 3 (scale) 60% vs run 4 (sign) 90% at 5M; within single-seed noise, not a confirmed effect.
 - No run reached three homes; the max is 1 home per eval episode.
 - Pending: seed-43 replica of run 3 on the Mac to estimate run-to-run variance.
+
+### Updated reading (after runs 3b and 5)
+- Seed fragility: run 3 (seed 42) 60% home vs run 3b (seed 43) 0% with the same config. 200k buffer enables but does not guarantee reaching home.
+- Life loss as terminal (run 5): episodes 696 vs 422 steps (run 4, 4-5M window); 535/1434 games with 2+ homes vs 0/2363; first three-home game in eval (5%). Supports the reflection hypothesis; single seed.
+- Open question: run 3's jump came right after a resume that emptied the replay.
+- README extension on main updated in commit 49ef13c.
