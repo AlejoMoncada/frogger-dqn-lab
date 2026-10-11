@@ -36,6 +36,8 @@ does what it is best at.
 - [x] H9 Frame-sharing replay, 8x less memory: one stored frame per env step, about 7.1 KB instead of 56.5 KB per transition (route: delegated writer)
 - [x] H10 Colab overkill notebook: `colab/frogger_overkill.ipynb` + `colab/README.md`, CLI flags for batch, threads, target interval, warmup, epsilon decay and lr (route: delegated writer)
 - [x] H11 Apple MPS support + Mac guide: `--device {cpu,cuda,mps,auto}`, device-aware sync and pinning, platform-conditional torch source, `docs/mac.md`. Real MPS execution is unverified until the user's 100k pilot (route: delegated writer, Haiku)
+- [x] H12 Life loss as terminal (episodic life for TD only): `--life-loss-terminal` / `life_loss_terminal`; a lost life ends the bootstrap, the game goes on (route: delegated direct, writer)
+- [ ] H13 Run 5: 200k, sign, life_loss_terminal, 5M (route: inline background)
 
 - [x] H8 Run 4: buffer 200k, reward_mode=sign, 5M steps (isolates buffer vs reward with run 3) — chained after run 3
 
@@ -176,6 +178,32 @@ does what it is best at.
     --output-dir runs/mps_cpu_smoke`: done, `timing.json` device `cpu`, host `AMD64`.
   - Unverified: real MPS execution, MPS speed and MPS numeric behavior. These wait for the user's 100k pilot.
   - Guide: `docs/mac.md`.
+- H12 Life loss as terminal (`exp/home-challenge`, route: delegated direct, writer):
+  - Motivation: run 4 at 5M loses 4 of 5 frogs in the river before its single home per game; death has
+    no direct cost in the TD target. Trace (6 seeds): 4 deaths in rows 7-10 at steps about 137, 180, 225
+    and 265; then 1 home at step about 376-383 with reward 51-53; no lives left for a second home.
+  - Behavior: `PixelDQNConfig.life_loss_terminal` (default False, recorded in `config.json`, missing key
+    reads as False). Per env, `lives_prev` comes from the reset info and is refreshed on every real step
+    and on the NextStep reset step. A life lost on a step (not terminated, not truncated) is stored with
+    `done=True` and flushes that env's n-step window as terminal. The game keeps going: episode return,
+    length, milestones and `episodes.csv` are unchanged. The next transition starts a new window from the
+    post-death observation. `--resume` keeps a saved true; the flag cannot turn a saved true off.
+  - Finding (real `AtariVectorEnv`, ale-py 0.12.1, `episodic_life=False`): the frame stack is NOT reset
+    or zero-filled on a life loss. After each of 3 losses (steps 125, 162, 210) the new stack's first
+    three channels equal the previous stack's last three. So `FrameReplay` bookkeeping needs no change:
+    only the n-step done flag changes.
+  - Tests: `tests/test_pixels_life_loss.py`, 10 new. RED: 9 failed before the change (the new field did not
+    exist). GREEN: all 10 pass. Covered: done and window flush per life, flag-off unchanged, one episode row
+    per full game, episodes.csv identical with and without the flag, lives tracking across the autoreset,
+    both replay layouts, config round-trip and missing key, resume keeps the saved flag, CLI flag.
+  - `uv run pytest -q`: 148 passed (baseline 138).
+  - Smoke: `uv run python train_pixels.py --smoke --device cuda --life-loss-terminal --output-dir
+    runs/life_smoke`: `config.json` has `"life_loss_terminal": true`; `episodes.csv` has 4 rows, episode ids
+    1-4, one per game.
+  - Hypothesis (unverified until H13): treating a lost life as terminal makes each frog worth its own TD
+    target, which should reduce risky river crossings and allow more than one home per game.
+  - Evaluation, MilestoneTracker and leaderboard are untouched (full 5-life games).
+  - Commits: `dcbdee6` (feat pixels, code and tests), `5874dc5` (feat colab preset key).
 
 ## Next step
 H3: choose the long-run budget (user decision). Long runs now use `--save-interval`; resume a

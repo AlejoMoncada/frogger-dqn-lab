@@ -66,6 +66,8 @@ caffeinate -dimsu uv run python train_pixels.py --total-steps 5000000 --device m
   --output-dir results/run_px_5m_r3_seed43_mac
 ```
 
+Opcional (experimental, H12): añade `--life-loss-terminal` para tratar la pérdida de una vida como fin del arranque TD; está desactivado por defecto.
+
 Si el proceso se interrumpe, reanúdalo en el mismo directorio (usa `checkpoints/latest.pt`). Repite
 siempre `--total-steps 5000000`: si se omite, el valor por defecto es 2 000 000 y el run terminaría antes.
 

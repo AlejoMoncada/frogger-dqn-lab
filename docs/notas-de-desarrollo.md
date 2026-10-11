@@ -267,3 +267,9 @@ Hipótesis sin verificar:
 - El recorte por signo subvalora llegar a casa, y eso frena el aprendizaje de la ruta completa.
 - Escalar la recompensa (`--reward-mode scale --reward-scale 0.1`: casa +5,5, fila +0,1) dará a
   casa un peso mayor sin dejar que domine el gradiente. La prueba es la corrida H7.
+
+### Por qué no pasa de una casa
+
+En la corrida 4 (5M pasos, 6 semillas), la traza muestra cuatro muertes en el río en las filas 7 a 10, en los pasos aproximados 137, 180, 225 y 265. El quinto sapo llega a casa entre los pasos 376 y 383, con recompensa 51 a 53. Después de la casa el juego sigue, pero ya no quedan vidas para una segunda casa.
+
+La muerte no tiene costo directo en el objetivo TD, así que el agente aprende a cruzar el río arriesgando vidas. Hipótesis: tratar la pérdida de una vida como terminal solo para el arranque TD (`done=1`, sin cortar el juego) hace que cada sapo tenga valor propio. Esto no está verificado hasta la corrida 5 (H13).
