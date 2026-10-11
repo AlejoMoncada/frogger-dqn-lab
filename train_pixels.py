@@ -9,7 +9,7 @@ from pathlib import Path
 
 import torch
 
-from dqn_frogger.pixels.config import PixelDQNConfig, default_device
+from dqn_frogger.pixels.config import REWARD_MODES, PixelDQNConfig, default_device
 from dqn_frogger.pixels.trainer import train
 
 
@@ -52,6 +52,18 @@ def parse_args() -> argparse.Namespace:
         help="Env steps between resumable checkpoints (default 250000).",
     )
     parser.add_argument(
+        "--reward-mode",
+        choices=list(REWARD_MODES),
+        default=None,
+        help="Reward seen by the learner: sign (default), scale (raw * --reward-scale), raw.",
+    )
+    parser.add_argument(
+        "--reward-scale",
+        type=float,
+        default=None,
+        help="Multiplier for --reward-mode scale (default 0.1). Episode returns stay raw.",
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="Continue from <output-dir>/checkpoints/latest.pt (replay is refilled, not restored).",
@@ -89,6 +101,10 @@ def main() -> None:
         overrides["buffer_size"] = args.buffer_size
     if args.save_interval is not None:
         overrides["save_interval"] = args.save_interval
+    if args.reward_mode is not None:
+        overrides["reward_mode"] = args.reward_mode
+    if args.reward_scale is not None:
+        overrides["reward_scale"] = args.reward_scale
     config = replace(config, **overrides)
 
     try:

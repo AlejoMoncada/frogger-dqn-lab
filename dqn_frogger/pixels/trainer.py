@@ -40,7 +40,7 @@ import torch
 from dqn_frogger.env import ENV_ID
 from dqn_frogger.milestones import MilestoneTracker, format_medals
 from dqn_frogger.pixels.agent import PixelDQNAgent
-from dqn_frogger.pixels.config import PixelDQNConfig
+from dqn_frogger.pixels.config import PixelDQNConfig, transform_reward, upgrade_saved_config
 from dqn_frogger.pixels.replay import NStepAccumulator, PixelReplayBuffer
 from dqn_frogger.pixels.safety import (
     available_memory_bytes,
@@ -271,6 +271,7 @@ def _restore_checkpoint(path: Path, agent: PixelDQNAgent, rng: np.random.Generat
 
 def _changed_hyperparameters(saved: dict[str, Any], current: PixelDQNConfig) -> list[str]:
     now = asdict(current)
+    saved = upgrade_saved_config(saved)
     return sorted(
         key for key in now if key not in RESUME_FREE_FIELDS and saved.get(key) != now[key]
     )
@@ -398,9 +399,9 @@ def train(
                     continue
                 reward = float(rewards[i])
                 trackers[i].observe(int(episode_length[i]), reward, int(lives[i]))
-                clipped = float(np.sign(reward)) if config.reward_clip else reward
+                shaped = transform_reward(reward, config.reward_mode, config.reward_scale)
                 accumulators[i].push(
-                    snapshot[i], actions[i], clipped, next_obs[i], bool(terminated[i]), bool(truncated[i])
+                    snapshot[i], actions[i], shaped, next_obs[i], bool(terminated[i]), bool(truncated[i])
                 )
                 episode_return[i] += reward
                 episode_length[i] += 1

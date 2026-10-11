@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+import numpy as np
 import torch
 
 from dqn_frogger.config import DEFAULT_CHECKPOINT_STEPS
@@ -9,6 +10,30 @@ from dqn_frogger.config import DEFAULT_CHECKPOINT_STEPS
 
 def default_device() -> str:
     return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+REWARD_MODES = ("sign", "scale", "raw")
+
+
+def transform_reward(reward: float, mode: str, scale: float) -> float:
+    """Reward the learner sees: `sign` clips to -1/0/+1, `scale` multiplies, `raw` passes through."""
+    if mode == "sign":
+        return float(np.sign(reward))
+    if mode == "scale":
+        return float(reward) * scale
+    if mode == "raw":
+        return float(reward)
+    raise ValueError(f"reward_mode must be one of {REWARD_MODES}, got {mode!r}")
+
+
+def upgrade_saved_config(saved: dict) -> dict:
+    """Map a config saved before `reward_mode` existed (`reward_clip` bool) to the new fields."""
+    if "reward_clip" not in saved:
+        return saved
+    upgraded = {key: value for key, value in saved.items() if key != "reward_clip"}
+    upgraded["reward_mode"] = "sign" if saved["reward_clip"] else "raw"
+    upgraded.setdefault("reward_scale", 0.1)
+    return upgraded
 
 
 @dataclass
@@ -29,7 +54,8 @@ class PixelDQNConfig:
     eps_start: float = 1.0
     eps_end: float = 0.01
     eps_decay_steps: int = 1_000_000
-    reward_clip: bool = True
+    reward_mode: str = "sign"  # "sign" (clip to -1/0/+1), "scale" (raw * reward_scale), "raw"
+    reward_scale: float = 0.1  # used only by reward_mode="scale"; episode returns stay raw
     seed: int = 42
     eval_episodes: int = 5
     eval_interval: int = 100_000
@@ -49,6 +75,8 @@ class PixelDQNConfig:
             raise ValueError("updates_per_vector_step cannot be negative")
         if self.save_interval <= 0:
             raise ValueError("save_interval must be positive")
+        if self.reward_mode not in REWARD_MODES:
+            raise ValueError(f"reward_mode must be one of {REWARD_MODES}, got {self.reward_mode!r}")
 
     def active_checkpoint_steps(self) -> tuple[int, ...]:
         """Checkpoint steps not beyond `total_steps`, always including the final step."""
