@@ -66,10 +66,11 @@ caffeinate -dimsu uv run python train_pixels.py --total-steps 5000000 --device m
   --output-dir results/run_px_5m_r3_seed43_mac
 ```
 
-Si el proceso se interrumpe, reanúdalo en el mismo directorio (usa `checkpoints/latest.pt`):
+Si el proceso se interrumpe, reanúdalo en el mismo directorio (usa `checkpoints/latest.pt`). Repite
+siempre `--total-steps 5000000`: si se omite, el valor por defecto es 2 000 000 y el run terminaría antes.
 
 ```sh
-caffeinate -dimsu uv run python train_pixels.py --resume --device mps \
+caffeinate -dimsu uv run python train_pixels.py --resume --total-steps 5000000 --device mps \
   --buffer-size 200000 --reward-mode scale --reward-scale 0.1 --seed 43 \
   --output-dir results/run_px_5m_r3_seed43_mac
 ```
