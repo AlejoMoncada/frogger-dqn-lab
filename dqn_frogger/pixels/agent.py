@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from torch import nn
 
+from dqn_frogger.pixels.device import pin_memory_enabled
 from dqn_frogger.pixels.network import PixelQNetwork
 from dqn_frogger.pixels.replay import PixelBatch
 
@@ -61,7 +62,7 @@ class PixelDQNAgent:
 
     def update(self, batch: PixelBatch) -> float:
         """One gradient step; returns the Huber loss as a Python float."""
-        pin = self.device.type == "cuda"
+        pin = pin_memory_enabled(self.device)
         obs = batch.obs.to(self.device, non_blocking=pin)
         next_obs = batch.next_obs.to(self.device, non_blocking=pin)
         actions = batch.actions.to(self.device, non_blocking=pin)

@@ -1,15 +1,19 @@
 """Train the pixel DQN (CNN, AtariVectorEnv, Double DQN, n-step) on ALE/Frogger-v5.
 
 Example: uv run python train_pixels.py --smoke --device cuda --output-dir runs/px_smoke_cuda
+Mac (Apple Silicon): uv run python train_pixels.py --smoke --device mps --output-dir runs/px_smoke_mps
 """
 
 import argparse
 from dataclasses import replace
 from pathlib import Path
 
-import torch
-
-from dqn_frogger.pixels.config import REPLAY_IMPLS, REWARD_MODES, PixelDQNConfig, default_device
+from dqn_frogger.pixels.config import REPLAY_IMPLS, REWARD_MODES, PixelDQNConfig
+from dqn_frogger.pixels.device import (
+    DEVICE_CHOICES,
+    DeviceUnavailableError,
+)
+from dqn_frogger.pixels.device import resolve_device as _resolve
 from dqn_frogger.pixels.trainer import train
 
 
@@ -19,9 +23,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-envs", type=int, default=None, help="Parallel Frogger envs.")
     parser.add_argument(
         "--device",
-        choices=["cpu", "cuda", "auto"],
+        choices=list(DEVICE_CHOICES),
         default="auto",
-        help="Device for the CNN; auto picks cuda when available.",
+        help="Device for the CNN; auto picks cuda, then mps (Apple Silicon), then cpu.",
     )
     parser.add_argument("--output-dir", type=Path, default=Path("runs/pixels"))
     parser.add_argument(
@@ -112,11 +116,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def resolve_device(choice: str) -> str:
-    if choice == "auto":
-        return default_device()
-    if choice == "cuda" and not torch.cuda.is_available():
-        raise SystemExit("error: --device cuda requested but CUDA is not available")
-    return choice
+    try:
+        return _resolve(choice)
+    except DeviceUnavailableError as error:
+        raise SystemExit(f"error: {error}") from error
 
 
 def main() -> None:

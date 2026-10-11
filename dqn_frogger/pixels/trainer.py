@@ -45,6 +45,7 @@ from dqn_frogger.env import ENV_ID
 from dqn_frogger.milestones import MilestoneTracker, format_medals
 from dqn_frogger.pixels.agent import PixelDQNAgent
 from dqn_frogger.pixels.config import PixelDQNConfig, transform_reward, upgrade_saved_config
+from dqn_frogger.pixels.device import host_info, pin_memory_enabled, resolve_device, sync_device
 from dqn_frogger.pixels.frame_replay import FrameReplay
 from dqn_frogger.pixels.replay import NStepAccumulator, PixelReplayBuffer
 from dqn_frogger.pixels.safety import (
@@ -124,8 +125,7 @@ def _crossed(previous: int, now: int, every: int) -> bool:
 
 
 def _sync(device: torch.device) -> None:
-    if device.type == "cuda":
-        torch.cuda.synchronize(device)
+    sync_device(device)
 
 
 def _write_run_config(
@@ -151,6 +151,8 @@ def _write_run_config(
             "ale_py": version("ale-py"),
             "numpy": np.__version__,
         },
+        "device": config.device,
+        "host": host_info(),
         "git_commit": _git_commit(),
         "eval_seed_base": EVAL_SEED_BASE,
         "eval_seed_span": EVAL_SEED_SPAN,
@@ -181,6 +183,7 @@ def _write_timing(
         "steps_per_second": round(session_steps / seconds, 1) if seconds > 0 else None,
         "device": config.device,
         "gpu": gpu,
+        "host": host_info(),
         "num_envs": config.num_envs,
         "num_threads": config.num_threads,
         "time_breakdown_seconds": {
@@ -297,8 +300,7 @@ def train(
     artifacts first) or `resume` (continues from `checkpoints/latest.pt`) is given.
     """
     validate_training_seed(config.seed)
-    if config.device == "cuda" and not torch.cuda.is_available():
-        raise ValueError("device 'cuda' was requested but CUDA is not available")
+    resolve_device(config.device)  # raises ValueError when the device is unknown or unavailable
     if resume and overwrite:
         raise ValueError("--resume and --overwrite cannot be combined")
     out = Path(output_dir)
@@ -449,7 +451,7 @@ def train(
                     if len(buffer) >= config.batch_size:
                         t0 = time.perf_counter()
                         batch = buffer.sample(
-                            config.batch_size, rng, pin_memory=device.type == "cuda"
+                            config.batch_size, rng, pin_memory=pin_memory_enabled(device)
                         )
                         last_loss = agent.update(batch)
                         _sync(device)

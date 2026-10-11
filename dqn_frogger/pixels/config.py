@@ -3,14 +3,9 @@
 from dataclasses import dataclass
 
 import numpy as np
-import torch
 
 from dqn_frogger.config import DEFAULT_CHECKPOINT_STEPS
-
-
-def default_device() -> str:
-    return "cuda" if torch.cuda.is_available() else "cpu"
-
+from dqn_frogger.pixels.device import default_device  # re-exported for existing imports
 
 REWARD_MODES = ("sign", "scale", "raw")
 REPLAY_IMPLS = ("frame", "stacked")  # frame: shared frame store (default); stacked: legacy layout
@@ -64,10 +59,10 @@ class PixelDQNConfig:
     eval_epsilon: float = 0.01
     checkpoint_steps: tuple[int, ...] = DEFAULT_CHECKPOINT_STEPS
     save_interval: int = 250_000  # periodic resumable checkpoint + checkpoints/latest.pt
-    device: str = ""  # "" resolves to cuda when available, else cpu (see __post_init__)
+    device: str = ""  # "" or "auto": cuda, else mps, else cpu (see __post_init__)
 
     def __post_init__(self) -> None:
-        if not self.device:
+        if not self.device or self.device == "auto":
             self.device = default_device()
         if self.total_steps % self.num_envs != 0:
             raise ValueError("total_steps must be a multiple of num_envs")

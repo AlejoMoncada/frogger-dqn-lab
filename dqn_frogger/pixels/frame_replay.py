@@ -164,7 +164,7 @@ class FrameReplay:
             torch.from_numpy(self._dones[idx]),
             torch.from_numpy(self._discounts[idx]),
         ]
-        if pin_memory:
+        if pin_memory and torch.cuda.is_available():  # pinning is a CUDA-only optimisation
             tensors = [t.pin_memory() for t in tensors]
         return PixelBatch(*tensors)
 

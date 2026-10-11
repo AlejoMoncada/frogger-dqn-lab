@@ -75,7 +75,7 @@ class PixelReplayBuffer:
         return StackedStream()
 
     def sample(self, batch_size: int, rng: np.random.Generator, pin_memory: bool = False) -> PixelBatch:
-        """Uniform batch with replacement. Pinned host tensors make the GPU copy asynchronous."""
+        """Uniform batch with replacement. Pinned host tensors (CUDA only) make the GPU copy async."""
         if self._size == 0:
             raise ValueError("cannot sample from an empty buffer")
         idx = rng.integers(0, self._size, size=batch_size)
@@ -87,7 +87,7 @@ class PixelReplayBuffer:
             torch.from_numpy(self.dones[idx]),
             torch.from_numpy(self.discounts[idx]),
         ]
-        if pin_memory:
+        if pin_memory and torch.cuda.is_available():  # pinning is a CUDA-only optimisation
             tensors = [t.pin_memory() for t in tensors]
         return PixelBatch(*tensors)
 

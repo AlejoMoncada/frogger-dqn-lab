@@ -33,7 +33,7 @@ from dqn_frogger.leaderboard import (  # noqa: E402
     summarize,
 )
 from dqn_frogger.pixels.agent import PixelDQNAgent  # noqa: E402
-from dqn_frogger.pixels.config import default_device  # noqa: E402
+from dqn_frogger.pixels.device import default_device  # noqa: E402  (cuda, else mps, else cpu)
 from dqn_frogger.pixels.trainer import ALGORITHM_LABEL as PIXEL_ALGORITHM  # noqa: E402
 from dqn_frogger.pixels.vector_env import make_playback_env  # noqa: E402
 from dqn_frogger.milestones import (  # noqa: E402
