@@ -320,9 +320,6 @@ Primer episodio de evaluación de cada checkpoint (`results/run_2m/gifs/`):
 
 ## Reflexión sobre los resultados
 
-> Borrador dos de la reflexión de grupo
-
-
 Los resultados muestran que el agente aprendió a obtener mayor recompensa y a alcanzar etapas más avanzadas que la política aleatoria.
 En la evaluación por checkpoints, el retorno medio después de 2 millones de pasos fue de 39.3 puntos, frente a 9.4 de la política aleatoria.
 Esta mejora respalda el aprendizaje bajo el protocolo utilizado, aunque no significa que el agente haya resuelto Frogger.
@@ -339,24 +336,20 @@ Una posible explicación es que el agente acumule menos experiencia en las zonas
 
 **Causa probable (hipótesis no verificada para el agente RAM).** La recompensa es +1 por fila nueva, no hay castigo por morir y solo el fin de la partida es terminal. Al morir, el sapo vuelve al inicio, donde las mismas filas vuelven a pagar. Con esa formulación, avanzar rápido rinde más que sobrevivir: el agente aprendió a avanzar rápido, no a sobrevivir.
 
-**Nunca vio una casa.** En los 7 408 episodios de entrenamiento no hubo ninguna casa (fila máxima 11). La exploración ε-greedy no produce por azar la secuencia completa de movimientos que lleva a la fila 12, así que la red nunca experimentó la recompensa de casa.
+**Nunca vio una casa.** En los 7 408 episodios de entrenamiento no hubo ninguna casa (fila máxima 11 en entrenamiento; 10 en evaluación). La exploración ε-greedy no produce por azar la secuencia completa de movimientos que lleva a la fila 12, así que la red nunca experimentó la recompensa de casa.
 
-**Prueba propuesta.** Un experimento natural es tratar la pérdida de vida como terminal, lo que cambia la señal que recibe la red. Limitación: esta lectura proviene de una sola semilla y no está verificada para el agente RAM.
+**Prueba propuesta.** Un experimento natural es tratar la pérdida de vida como terminal, lo que cambia la señal que recibe la red. Lo probamos en la variante con píxeles de la [extensión](#extensión-rompiendo-el-techo-de-la-fila-10) (corrida 5): las partidas duraron un 65 % más y el agente llegó por primera vez a 2 y 3 casas en una partida, lo que apoya la hipótesis. Limitaciones: es una sola semilla y no lo probamos con el agente RAM de este entregable.
 
 Las evaluaciones periódicas presentan fluctuaciones incluso al final del entrenamiento.
 Aunque el desempeño se mantiene por encima del observado al inicio, no podemos afirmar una convergencia definitiva.
 Además, las desviaciones estándar describen diferencias entre episodios de evaluación; una sola corrida larga no permite establecer qué tan consistente sería el aprendizaje con otras semillas de entrenamiento.
 
-Los hitos también tienen límites de interpretación. first_hop no distingue al agente entrenado de la política aleatoria, porque ambos lo alcanzan en todos los episodios evaluados. Los indicadores de casas son proxies cuya detección no fue validada contra trazas de RAM, por lo que no deben presentarse como logros confirmados.
+Los hitos también tienen límites de interpretación. `first_hop` no distingue al agente entrenado de la política aleatoria, porque ambos lo alcanzan en todos los episodios evaluados. En este agente, los indicadores de casas siguen siendo proxies: nunca se activaron, así que no hubo un caso real con el cual validarlos. En la rama experimental, una traza paso a paso confirmó la señal que usan: al llegar a casa la recompensa es de +51 a +55, el sapo no pierde la vida y el contador de filas vuelve a 0.
 
 Concluimos que el DQN mostró aprendizaje parcial y que combinar recompensa con hitos permitió comprender mejor su comportamiento.
 Para fortalecer la evidencia, proponemos repetir entrenamientos con otras semillas, conservar la configuración y los resultados individuales de evaluación, y analizar las zonas donde se limita el avance antes de decidir qué cambios realizar en el agente.
 
 ## Reflexión: qué fue lo más difícil
-
-<!-- BORRADOR: reescribir con la voz del grupo antes de entregar -->
-
-> ✍️ Borrador para revisión del grupo.
 
 Lo más difícil fue decidir qué observación usar con el plazo que teníamos. Los píxeles y una CNN eran la
 versión clásica, pero requerían millones de cuadros que no cabían en el tiempo. Elegimos la RAM de 128 bytes
@@ -368,9 +361,10 @@ y el entrenamiento de 300 000 pasos en CPU terminó en 6 minutos. Aprendimos a m
 infraestructura.
 
 Calibrar los hitos fue otra dificultad. Medimos las filas en cuadros renderizados y confirmamos el byte 90
-de la RAM en cada paso de cinco episodios. La detección de casa nunca quedó verificada: el agente no pasó de
-la fila 10, y la búsqueda en haz no encontró una trayectoria que llegara a la fila 12. Por eso las medallas de
-casa son proxies, y así lo indicamos en las tablas.
+de la RAM en cada paso de cinco episodios. La detección de casa no pudimos verificarla con este agente: en
+evaluación no pasó de la fila 10, y la búsqueda en haz no encontró una trayectoria que llegara a la fila 12.
+Por eso las medallas de casa son proxies, y así lo indicamos en las tablas. La confirmación llegó después, en
+la rama experimental: cuando un agente con píxeles llegó a casa, la traza mostró una recompensa de +51 a +55.
 
 La revisión independiente también nos enseñó algo. Su primera ejecución terminó con código de salida 0, pero
 no leyó ningún archivo. Desde entonces verificamos el contenido de las salidas y no solo el código de salida.
