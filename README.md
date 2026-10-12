@@ -159,6 +159,20 @@ Entrada (128) → Linear(128, 256) → ReLU → Linear(256, 256) → ReLU → Li
 Número de parámetros: **100 101** (33 024 + 65 792 + 1 285), verificado con `sum(p.numel())`. La red
 objetivo tiene la misma arquitectura y el mismo número de parámetros.
 
+**Por qué este diseño:**
+
+- **MLP y no CNN:** la entrada es un vector de 128 bytes de RAM, no una imagen. Las convoluciones aprovechan
+  la estructura espacial de los píxeles vecinos, y la RAM no la tiene: dos bytes contiguos no tienen por qué
+  estar relacionados. Una red densa puede combinar cualquier par de bytes.
+- **Dos capas ocultas de 256:** es un tamaño habitual para entradas vectoriales pequeñas. Da capacidad para
+  combinar posiciones de sapo, autos y troncos sin volverse costosa: 100 101 parámetros se entrenan rápido
+  en CPU (la medición CPU frente a GPU está en Resultados).
+- **ReLU:** activación estándar; evita la saturación de sigmoide y tanh y es barata de calcular.
+- **Salida lineal de 5 neuronas:** una por acción. Cada salida es el valor Q estimado de esa acción, que
+  puede ser cualquier número real, por eso no lleva activación. La acción greedy es el `argmax` de las 5.
+- **Entrada normalizada a [0, 1]:** los bytes se dividen entre 255 para que las activaciones iniciales
+  tengan una escala razonable.
+
 ## Resultados
 
 ### Alcance de la evaluación
@@ -367,6 +381,8 @@ agente cruzaba el río con más frecuencia. Sin las medallas no habríamos visto
 ## Extensión: rompiendo el techo de la fila 10
 
 El agente de este README no pasa de la fila 10 y nunca llega a casa. En la rama [`exp/home-challenge`](https://github.com/AlejoMoncada/frogger-dqn-lab/tree/exp/home-challenge) probamos una variante con píxeles, CNN (arquitectura de Nature DQN), Double DQN y n-step = 3.
+
+> 🎮 **Página interactiva:** [La carrera del sapo](https://alejomoncada.github.io/frogger-dqn-lab/historia/) recorre el problema, el ciclo del DQN y la carrera de medallas de cada corrida, con los GIF del agente en cada checkpoint.
 
 - **Diseño mixto CPU/GPU:** 8 entornos en CPU (`AtariVectorEnv`) y la CNN en GPU. En un piloto de 100 000 pasos fue 4.9 veces más rápido que todo en CPU (607 frente a 123 pasos/s).
 - **Ablación a 5 000 000 de pasos**, 20 episodios de evaluación con ε = 0.01 por checkpoint:
