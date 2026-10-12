@@ -162,19 +162,29 @@ Entrada (128) → Linear(128, 256) → ReLU → Linear(256, 256) → ReLU → Li
 Número de parámetros: **100 101** (33 024 + 65 792 + 1 285), verificado con `sum(p.numel())`. La red
 objetivo tiene la misma arquitectura y el mismo número de parámetros.
 
-**Por qué este diseño:**
+| Capa | Entrada → salida | Parámetros (pesos + sesgos) |
+|---|---|---|
+| `Linear` + ReLU | 128 → 256 | 128 × 256 + 256 = 33 024 |
+| `Linear` + ReLU | 256 → 256 | 256 × 256 + 256 = 65 792 |
+| `Linear` (salida) | 256 → 5 | 256 × 5 + 5 = 1 285 |
 
-- **MLP y no CNN:** la entrada es un vector de 128 bytes de RAM, no una imagen. Las convoluciones aprovechan
-  la estructura espacial de los píxeles vecinos, y la RAM no la tiene: dos bytes contiguos no tienen por qué
-  estar relacionados. Una red densa puede combinar cualquier par de bytes.
-- **Dos capas ocultas de 256:** es un tamaño habitual para entradas vectoriales pequeñas. Da capacidad para
-  combinar posiciones de sapo, autos y troncos sin volverse costosa: 100 101 parámetros se entrenan rápido
-  en CPU (la medición CPU frente a GPU está en Resultados).
-- **ReLU:** activación estándar; evita la saturación de sigmoide y tanh y es barata de calcular.
-- **Salida lineal de 5 neuronas:** una por acción. Cada salida es el valor Q estimado de esa acción, que
-  puede ser cualquier número real, por eso no lleva activación. La acción greedy es el `argmax` de las 5.
-- **Entrada normalizada a [0, 1]:** los bytes se dividen entre 255 para que las activaciones iniciales
-  tengan una escala razonable.
+### Por qué este diseño
+
+- **MLP y no CNN.** Una convolución aprovecha que los píxeles vecinos están relacionados. En la RAM, dos
+  bytes contiguos no tienen por qué estarlo: uno puede ser una posición y el siguiente un contador. Sin
+  estructura espacial, la capa adecuada es la densa, que conecta cada byte con todas las neuronas.
+- **Entrada de 128.** Un valor por byte de la RAM, dividido entre 255 para llevarlo a `[0, 1]` y que las
+  activaciones iniciales tengan una escala razonable. No hay kernels ni strides porque no hay convoluciones.
+- **Dos capas ocultas de 256.** Es un tamaño habitual para entradas vectoriales pequeñas y no lo
+  comparamos con otros. La primera capa puede combinar bytes (por ejemplo, la posición del sapo con la de
+  un auto) y la segunda, combinar esas combinaciones.
+- **ReLU.** Activación estándar en DQN: es barata de calcular y, a diferencia de sigmoide y tanh, no satura
+  para valores positivos.
+- **Salida lineal de 5 valores.** Una sola pasada da el valor Q de las cinco acciones, así que elegir la
+  acción greedy (el `argmax`) cuesta una evaluación de la red. No lleva activación final porque Q es un
+  número real sin cota fija.
+- **Red pequeña a propósito.** Con 100 101 parámetros, cada actualización tarda 2.1 ms en CPU y el
+  entrenamiento completo cabe en 45 minutos (véase [CPU frente a GPU](#cpu-frente-a-gpu-medido)).
 
 ## Resultados
 
