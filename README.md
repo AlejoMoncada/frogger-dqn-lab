@@ -3,6 +3,9 @@
 **Taller 2 (U3) — Grupo 2.** Agente DQN implementado desde cero con **PyTorch + Gymnasium**, sin
 Stable-Baselines3, que aprende a jugar `ALE/Frogger-v5` a partir de la observación RAM de la consola.
 
+**Integrantes:** Derly Yulid Mazenett · Juan Sebastian Quintero · Sebastian Camilo Gomez Castañeda ·
+Alejandro Moncada Cifuentes · Yessica Alexandra Delgado Galindo
+
 Este repositorio es independiente del taller de PPO (`frogger-rl-lab`), que usa Stable-Baselines3 y se
 entregó por separado.
 
