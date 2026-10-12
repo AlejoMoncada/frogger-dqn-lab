@@ -1,6 +1,6 @@
 # Leaderboard: run_2m
 
-20 greedy episodes per checkpoint (epsilon=0.01, seeds 900000+i), random policy as baseline.
+20 evaluation episodes per checkpoint (epsilon=0.01, seeds 900000+i), random policy as baseline.
 
 | Checkpoint | Episodes | Score | Max rows (mean / max) | Homes (mean / max) | 🐸 first_hop | 🥉 road_crossed | 🪵 first_log | 🥈 mid_river | 🥇 frog_home* | 🏆 three_homes* | 👑 level_cleared* |
 |---|---|---|---|---|---|---|---|---|---|---|---|

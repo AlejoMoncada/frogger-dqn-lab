@@ -77,7 +77,7 @@ def main() -> None:
             fmt="o-",
             color="tab:orange",
             capsize=3,
-            label="greedy evaluation (mean ± std)",
+            label="evaluation, eps=0.01 (mean ± std)",
         )
 
     ax.set_xlabel("global step (agent steps)")

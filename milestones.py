@@ -207,7 +207,7 @@ def plot_medals(path: Path, steps: list[int], medal_pcts: list[dict[str, float]]
     ax.set_xlabel("training step")
     ax.set_ylabel("% of evaluation episodes")
     ax.set_ylim(-2, 102)
-    ax.set_title("Milestones achieved by checkpoint (greedy, eps=0.01)")
+    ax.set_title("Milestones achieved by checkpoint (eps=0.01)")
     ax.grid(alpha=0.3)
     ax.legend(loc="center left", bbox_to_anchor=(1.01, 0.5))
     fig.tight_layout()
@@ -233,7 +233,7 @@ def rebuild_medal_plot(run_dir: Path) -> Path:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build the milestone leaderboard for a run.")
     parser.add_argument("--run-dir", type=Path, required=True, help="Run with checkpoints/.")
-    parser.add_argument("--episodes", type=int, default=20, help="Greedy episodes per checkpoint.")
+    parser.add_argument("--episodes", type=int, default=20, help="Evaluation episodes per checkpoint (eps=0.01).")
     parser.add_argument(
         "--plot-only",
         action="store_true",
@@ -285,7 +285,7 @@ def main() -> None:
     write_csv(run_dir / "leaderboard.csv", rows)
     report = (
         f"# Leaderboard: {run_dir.name}\n\n"
-        f"{args.episodes} greedy episodes per checkpoint (epsilon={EVAL_EPSILON}, "
+        f"{args.episodes} evaluation episodes per checkpoint (epsilon={EVAL_EPSILON}, "
         f"seeds {EVAL_SEED_BASE}+i), random policy as baseline.\n\n"
         + render_markdown(rows)
         + legend_markdown()

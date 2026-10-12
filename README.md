@@ -24,7 +24,7 @@ entregó por separado.
 | Algoritmo | DQN: buffer de repetición, ε-greedy, red objetivo, pérdida Huber |
 | Red | MLP 128 → 256 → 256 → 5, ReLU, 100 101 parámetros |
 | Entrenamiento | 2 000 000 de pasos en CPU, 45 min (738.9 pasos/s) |
-| Resultado principal | Puntaje greedy 39.3 ± 2.9 a 2M pasos, frente a 9.4 ± 2.3 de la política aleatoria |
+| Resultado principal | Puntaje con ε = 0.01: 39.3 ± 2.9 a 2M pasos, frente a 9.4 ± 2.3 de la política aleatoria |
 
 ## Entorno
 
@@ -201,7 +201,7 @@ mismo entorno con PyTorch 2.11.0+cu128 (`benchmarks/cpu_vs_gpu.py`, resultados e
 | Emulador solo, acciones aleatorias, sin red | 2 191.4 pasos/s | — |
 | Una actualización de la red (lote de 64) | **2.135 ms** | 3.371 ms |
 | Entrenamiento de 100 000 pasos | **133.0 s (751.8 pasos/s)** | 172.3 s (580.6 pasos/s) |
-| Evaluación greedy a 100 000 pasos (10 episodios) | 8.3 ± 2.3 | 11.9 ± 1.8 |
+| Evaluación con ε = 0.01 a 100 000 pasos (10 episodios) | 8.3 ± 2.3 | 11.9 ± 1.8 |
 
 - **La GPU fue un 23 % más lenta.** La red tiene 100 101 parámetros y se entrena con lotes de 64: en la
   GPU pesa más el costo fijo de copiar cada lote y lanzar los kernels que el cálculo en sí.
@@ -219,7 +219,7 @@ mismo entorno con PyTorch 2.11.0+cu128 (`benchmarks/cpu_vs_gpu.py`, resultados e
 ![Curva de aprendizaje](results/run_2m/learning_curve.png)
 
 La curva muestra el retorno de cada episodio (raw, sin recorte), su promedio móvil de 50 episodios, la
-evaluación greedy cada 25 000 pasos (media ± desviación estándar) y el máximo de filas por vida.
+evaluación periódica con ε = 0.01 cada 25 000 pasos (media ± desviación estándar) y el máximo de filas por vida.
 
 ### Interpretación de la curva de aprendizaje
 
@@ -243,6 +243,9 @@ Evaluación greedy de 20 episodios (`results/baseline_300k/evaluation.json`):
 | DQN (300 000 pasos) | 25.20 ± 4.35 |
 
 ### Evaluación final frente a aleatoria
+
+Ambas evaluaciones usan ε = 0.01 (el leaderboard, 20 episodios por checkpoint; la evaluación durante el
+entrenamiento, 10 episodios).
 
 | Fuente | Episodios | Aleatoria | DQN a 2M pasos |
 |---|---|---|---|
